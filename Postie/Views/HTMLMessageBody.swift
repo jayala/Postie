@@ -238,6 +238,27 @@ enum EmailHTMLPolicy {
                 image.style.aspectRatio = width + ' / ' + height;
             }
         }
+        // The web view takes the height reported below, so a height taken from the web view would grow
+        // with every report, up to the cap. Emails do this with `100vh` and with `height: 100%` on the body.
+        const viewportHeight = /[0-9.][sdl]?(?:vh|vb|vmax)/i;
+        const ignoreViewport = (style) => {
+            for (const property of ['height', 'min-height']) {
+                if (viewportHeight.test(style.getPropertyValue(property))) {
+                    style.setProperty(property, 'auto', style.getPropertyPriority(property));
+                }
+            }
+        };
+        const ignoreViewportInRules = (rules) => {
+            for (const rule of rules) {
+                if (rule.style) { ignoreViewport(rule.style); }
+                if (rule.cssRules) { ignoreViewportInRules(rule.cssRules); }
+            }
+        };
+        for (const sheet of document.styleSheets) { ignoreViewportInRules(sheet.cssRules); }
+        for (const element of document.querySelectorAll('[style]')) { ignoreViewport(element.style); }
+        // With an automatic height on the body, percentage heights inside it stop depending on the viewport too.
+        document.body.style.setProperty('height', 'auto', 'important');
+        document.body.style.setProperty('min-height', '0', 'important');
         let lastHeight = -1;
         const root = document.documentElement;
         const report = () => {

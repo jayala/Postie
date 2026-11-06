@@ -319,6 +319,44 @@ struct EmailHTMLTests {
         """
     }
 
+    // The web view is sized to the height it reports. Content sized from the viewport would grow with
+    // every report, leaving a message hundreds of thousands of points tall and mostly empty.
+    @Test("A message's height does not follow the size of its web view", arguments: [
+        "<style>html, body { height: 100%; }</style><div style=\"height: 20px\"></div>"
+            + "<table height=\"100%\" width=\"100%\"><tr><td><div style=\"height: 200px\"></div></td></tr></table>",
+        "<html style=\"height: 100%\"><body style=\"height: 100%; margin: 8px\"><div style=\"height: 100%; margin-bottom: 20px\"></div></body></html>",
+        "<style>body { height: 100vh !important; }</style><div style=\"height: 200px; margin-bottom: 20px\"></div>",
+        "<div style=\"min-height: 100vh\"><div style=\"height: 200px\"></div></div><p>Footer</p>",
+        "<style>.page { height: calc(100vh - 2px); }</style><div class=\"page\"></div><p>Footer</p>",
+        "<style>@media screen { .page { min-height: 100dvh !important; } }</style><div class=\"page\"></div><p>Footer</p>",
+        "<div style=\"min-height: 100vmax\"></div><p>Footer</p>"
+    ])
+    func heightIgnoresViewport(html: String) async throws {
+        let page = BrowserFixture()
+        defer { page.close() }
+        let height = try await page.settledHeight(of: html + "<div id=\"end\"></div>")
+        let bottom = try await page.inspect("return { bottom: document.getElementById('end').getBoundingClientRect().bottom };")["bottom"] as? Double
+        #expect(height < 400)
+        #expect(abs(height - CGFloat(try #require(bottom))) <= 8) // The body's own margin may follow the end.
+    }
+
+    @Test("Heights and widths that don't depend on the viewport's height are left alone")
+    func fixedSizesAreKept() async throws {
+        let page = BrowserFixture()
+        defer { page.close() }
+        _ = try await page.settledHeight(of: """
+        <style>#rule { height: 40px; } #wide { width: 50vw; height: 10px; }</style>
+        <div id="rule"></div><div id="wide"></div><div id="inline" style="min-height: 30px"></div>
+        """)
+        let sizes = try await page.inspect("""
+        const height = id => document.getElementById(id).getBoundingClientRect().height;
+        return { rule: height('rule'), wide: document.getElementById('wide').getBoundingClientRect().width, inline: height('inline') };
+        """)
+        #expect(sizes["rule"] as? Double == 40)
+        #expect(abs(try #require(sizes["wide"] as? Double) - 210) < 0.5)
+        #expect(sizes["inline"] as? Double == 30)
+    }
+
     @Test("Quoted history is collapsed behind a button that expands it", arguments: [
         "<div>Thanks!</div><div class=\"gmail_quote\"><div>On Monday, Ann wrote:</div><blockquote>Earlier text</blockquote></div>",
         "<div>Thanks!</div><blockquote type=\"cite\"><div>On Monday, Ann wrote:</div>Earlier text</blockquote>",
@@ -451,6 +489,24 @@ private final class BrowserFixture {
         return true;
         """, arguments: [:], in: nil, contentWorld: .defaultClient)
         return height
+    }
+
+    /// Loads the message and sizes the view to each height it reports, as `HTMLMessageBody` does,
+    /// until the height stops changing or has clearly run away.
+    func settledHeight(of html: String) async throws -> CGFloat {
+        var latest: CGFloat = 0
+        coordinator.heightChanged = { [view, events] in
+            latest = $0
+            view.setFrameSize(CGSize(width: view.frame.width, height: $0))
+            events.yield($0)
+        }
+        _ = try await load(html)
+        var previous: CGFloat
+        repeat {
+            previous = latest
+            try await Task.sleep(for: .milliseconds(300))
+        } while latest != previous && latest < 5_000
+        return latest
     }
 
     func inspect(_ script: String) async throws -> [String: Any] {

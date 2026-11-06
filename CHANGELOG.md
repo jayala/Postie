@@ -40,6 +40,8 @@ All notable changes to Postie are documented here. The format is based on
 
 ### Fixed
 
+- Some emails, such as boarding passes, no longer end in a very long empty area with
+  an extra scrollbar.
 - Images in table-based emails, such as logos in a header, are no longer squashed
   into a thin strip or hidden.
 - Thin rule and spacer images in emails keep the size the email gives them instead
