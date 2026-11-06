@@ -48,7 +48,8 @@ struct PostieApp: App {
         // This build is signed with its own team and bundle ID, so it must not update itself from the upstream releases.
         _updater = State(initialValue: UpdaterModel(startingUpdater: false))
         _hub = State(initialValue: MailHub(
-            accounts: accounts, persistsMail: !launchMode.usesLocalAccount, syncsInBackground: !launchMode.usesLocalAccount
+            accounts: accounts, persistsMail: !launchMode.usesLocalAccount, syncsInBackground: !launchMode.usesLocalAccount,
+            preferences: launchMode.usesLocalAccount ? nil : .standard
         ))
     }
 

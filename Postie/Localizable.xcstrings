@@ -219,6 +219,9 @@
     "Edit Draft" : {
 
     },
+    "Everything else" : {
+
+    },
     "Expanded" : {
       "comment" : "VoiceOver value of a message that is showing its full body"
     },
@@ -264,6 +267,9 @@
     "Google sign-in was not completed (%@)." : {
 
     },
+    "Group the Inbox into Important and unread, Starred, and Everything else." : {
+
+    },
     "Hide quoted text" : {
       "comment" : "Tooltip of the button that collapses the quoted history of an email"
     },
@@ -271,6 +277,9 @@
       "comment" : "Accessibility label for the web view showing a formatted email"
     },
     "I" : {
+
+    },
+    "Important and unread" : {
 
     },
     "Inbox" : {
@@ -397,6 +406,9 @@
 
     },
     "Postie needs permission to read and organize your Gmail. Sign in again and allow Gmail access." : {
+
+    },
+    "Priority Inbox" : {
 
     },
     "Read" : {

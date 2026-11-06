@@ -17,6 +17,10 @@ subscriptions, AI features, or workspace bloat.
   belongs to. New messages come from the account on screen, and in All Inboxes from
   the default account chosen in Settings
 - Inbox, Drafts, Sent, Archive, Junk, and Trash
+- Priority Inbox, optional in Settings: groups the Inbox into Important and unread,
+  Starred, and Everything else, each of which can be collapsed. Older important and
+  starred mail shows up there without scrolling to it. This is Postie's own setting,
+  as Gmail doesn't let apps read yours
 - Conversation view with HTML email rendering, and the conversation's Gmail labels
   next to its subject
 - Compose, reply, reply all, and forward in a rich-text editor (bold, italic,
@@ -134,6 +138,10 @@ operation after the user changes selection does not choose a new thread.
 Several selected threads stay closed and unread. Removing them chooses the next
 neighbor past the oldest of them once they have all gone; threads Gmail refused
 stay selected instead.
+
+Add `-PostiePriorityInbox` to try the same mail in a Priority Inbox, with an
+important unread thread and a starred one. Open **Important unread thread**: once
+it is marked read it must stay in its section until another thread is selected.
 
 ## Tests
 

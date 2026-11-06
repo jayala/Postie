@@ -19,7 +19,9 @@ final class InboxModel {
     private(set) var selectionRetry = 0
     /// Bumped when an explicit removal should hand keyboard focus back to the list.
     private(set) var listFocusRequest = 0
-    private var selection = ConversationSelection<ConversationKey>()
+    private var selection = ConversationSelection<ConversationKey>() {
+        didSet { hub.holdSections(of: selection.selectedIDs) }
+    }
     /// The window's history, which also backs the Edit menu and undoing typing in the search field.
     @ObservationIgnored weak var undoManager: UndoManager?
     /// The undo or redo reaching Gmail last, which the next one waits for.
@@ -138,7 +140,7 @@ final class InboxModel {
 
     /// Loads the next page as the end of the list scrolls into view.
     func conversationAppeared(_ key: ConversationKey) {
-        guard key == conversationKeys.last, hub.hasMorePages, !hub.isLoadingMailbox else { return }
+        guard key == conversationKeys.last, hub.hasMorePages, !hub.isLoadingMailbox, !hub.list.endsCollapsed else { return }
         loadMore()
     }
 

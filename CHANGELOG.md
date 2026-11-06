@@ -22,6 +22,10 @@ All notable changes to Postie are documented here. The format is based on
 - Undo and Redo (⌘Z and ⇧⌘Z) for archiving, moving to the Trash, flagging and
   marking as read or unread, back through as many steps as you like, like Mail. What
   comes back is selected again. The Edit menu names the step to undo.
+- Priority Inbox, an option in Settings > General. It groups the Inbox into Important
+  and unread, Starred, and Everything else, including older mail further down the
+  Inbox. Click a heading to collapse its section. A conversation stays in its section
+  while it is selected, so reading or unflagging it doesn't move it away.
 
 ### Changed
 

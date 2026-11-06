@@ -38,6 +38,7 @@ nonisolated struct GmailConversation: Identifiable, Equatable, Sendable {
     var labelIDs: Set<String> { messages.reduce(into: []) { $0.formUnion($1.labelIDs) } }
     var isUnread: Bool { labelIDs.contains("UNREAD") }
     var isStarred: Bool { labelIDs.contains("STARRED") }
+    var isImportant: Bool { labelIDs.contains("IMPORTANT") }
     var latestDate: Date { messages.last?.date ?? .distantPast }
 
     /// What to show as the conversation's labels: where it is, then the person's own labels by name.
