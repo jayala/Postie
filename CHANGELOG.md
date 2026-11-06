@@ -18,6 +18,13 @@ All notable changes to Postie are documented here. The format is based on
 - Inbox and the other folders now show only the selected account instead of every
   account merged. Search and new messages follow the account on screen.
 
+### Fixed
+
+- Images in table-based emails, such as logos in a header, are no longer squashed
+  into a thin strip or hidden.
+- Thin rule and spacer images in emails keep the size the email gives them instead
+  of growing into large squares.
+
 ## [0.3.0] - 2026-10-14
 
 ### Changed
