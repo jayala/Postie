@@ -45,7 +45,8 @@ struct PostieApp: App {
     init() {
         let launchMode = LaunchMode.current
         let accounts = launchMode.usesLocalAccount ? AccountStore(vault: MemoryAccountVault()) : AccountStore()
-        _updater = State(initialValue: UpdaterModel(startingUpdater: !launchMode.usesLocalAccount))
+        // This build is signed with its own team and bundle ID, so it must not update itself from the upstream releases.
+        _updater = State(initialValue: UpdaterModel(startingUpdater: false))
         _hub = State(initialValue: MailHub(
             accounts: accounts, persistsMail: !launchMode.usesLocalAccount, syncsInBackground: !launchMode.usesLocalAccount
         ))

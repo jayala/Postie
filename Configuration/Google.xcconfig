@@ -4,3 +4,5 @@ GOOGLE_REVERSED_CLIENT_ID = com.googleusercontent.apps.143365580349-hlt5vffik63h
 INFOPLIST_FILE = Configuration/Info.plist
 CODE_SIGN_ENTITLEMENTS = Configuration/Postie.entitlements
 ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES
+
+#include? "Google.local.xcconfig"
