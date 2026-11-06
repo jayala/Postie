@@ -37,23 +37,50 @@ struct HTMLMessageBody: View {
 }
 
 /// A plain-text message body, with the web and mail addresses in it clickable.
-struct PlainMessageText: View {
+/// This is a text view because SwiftUI's `Text` cannot show a different cursor over just its links.
+struct PlainMessageText: NSViewRepresentable {
     let text: String
 
-    var body: some View {
-        Text(Self.linked(text))
-            .font(.body)
-            .lineSpacing(3)
-            .textSelection(.enabled)
+    func makeNSView(context: Context) -> NSTextView {
+        let view = NSTextView()
+        view.isEditable = false
+        view.isSelectable = true
+        view.drawsBackground = false
+        view.textContainerInset = .zero
+        view.textContainer?.lineFragmentPadding = 0
+        view.linkTextAttributes = [
+            .foregroundColor: NSColor.linkColor,
+            .underlineStyle: NSUnderlineStyle.single.rawValue,
+            .cursor: NSCursor.pointingHand
+        ]
+        return view
     }
 
-    static func linked(_ text: String) -> AttributedString {
-        var result = AttributedString(text)
+    func updateNSView(_ view: NSTextView, context: Context) {
+        // Setting the same text again would clear the person's selection.
+        guard view.string != text else { return }
+        view.textStorage?.setAttributedString(Self.linked(text))
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, nsView: NSTextView, context: Context) -> CGSize? {
+        guard let width = proposal.width, width.isFinite else { return nil }
+        let height = Self.linked(text).boundingRect(with: CGSize(width: width, height: .greatestFiniteMagnitude),
+                                                    options: [.usesLineFragmentOrigin, .usesFontLeading]).height
+        return CGSize(width: width, height: ceil(height))
+    }
+
+    static func linked(_ text: String) -> NSAttributedString {
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.lineSpacing = 3
+        let result = NSMutableAttributedString(string: text, attributes: [
+            .font: NSFont.preferredFont(forTextStyle: .body),
+            .foregroundColor: NSColor.labelColor,
+            .paragraphStyle: paragraph
+        ])
         guard let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) else { return result }
         for match in detector.matches(in: text, range: NSRange(text.startIndex..., in: text)) {
-            guard let url = EmailHTMLPolicy.externalLink(match.url), let found = Range(match.range, in: text),
-                  let range = Range<AttributedString.Index>(found, in: result) else { continue }
-            result[range].link = url
+            guard let url = EmailHTMLPolicy.externalLink(match.url) else { continue }
+            result.addAttribute(.link, value: url, range: match.range)
         }
         return result
     }
@@ -135,6 +162,7 @@ enum EmailHTMLPolicy {
         img[height]:not([width]) { object-fit: contain; }
         pre { white-space: pre-wrap; }
         a { color: LinkText; }
+        a[href] { cursor: pointer; }
         </style></head><body>\(html)</body></html>
         """
     }

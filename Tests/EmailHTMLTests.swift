@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 import Testing
 import WebKit
 @testable import Postie
@@ -190,7 +191,7 @@ struct EmailHTMLTests {
         let page = BrowserFixture()
         defer { page.close() }
         _ = try await page.load("""
-        <p id="review">Review: https://admin.example.com/evidence/EH-1</p>
+        <p id="review">Review: https://example.com/review/42</p>
         <p id="sentence">See (https://example.com/a_(b)), www.example.org. Or write to help@example.com.</p>
         <p id="existing"><a href="https://example.com/real">https://example.com/shown</a></p>
         <style id="css">.a { background: url(https://example.com/x.png); }</style>
@@ -201,11 +202,13 @@ struct EmailHTMLTests {
         return {
             review: links('review'), reviewText: document.getElementById('review').textContent,
             sentence: links('sentence'), sentenceText: document.getElementById('sentence').textContent,
-            existing: links('existing'), css: links('css'), plain: links('plain')
+            existing: links('existing'), css: links('css'), plain: links('plain'),
+            cursor: getComputedStyle(document.querySelector('#review a')).cursor
         };
         """)
-        #expect(result["review"] as? [String] == ["https://admin.example.com/evidence/EH-1"])
-        #expect(result["reviewText"] as? String == "Review: https://admin.example.com/evidence/EH-1")
+        #expect(result["review"] as? [String] == ["https://example.com/review/42"])
+        #expect(result["reviewText"] as? String == "Review: https://example.com/review/42")
+        #expect(result["cursor"] as? String == "pointer")
         #expect(result["sentence"] as? [String] == ["https://example.com/a_(b)", "http://www.example.org", "mailto:help@example.com"])
         #expect(result["sentenceText"] as? String == "See (https://example.com/a_(b)), www.example.org. Or write to help@example.com.")
         #expect(result["existing"] as? [String] == ["https://example.com/real"])
@@ -215,10 +218,31 @@ struct EmailHTMLTests {
 
     @Test("Only web and mail addresses in plain text become links")
     func plainTextLinks() {
-        let text = "Café: https://example.com/evidence/EH-1\r\nWrite to help@example.com, not javascript:alert(1)."
+        let text = "Café: https://example.com/review/42\r\nWrite to help@example.com, not javascript:alert(1)."
         let linked = PlainMessageText.linked(text)
-        #expect(linked.runs.compactMap(\.link).map(\.absoluteString) == ["https://example.com/evidence/EH-1", "mailto:help@example.com"])
-        #expect(String(linked.characters) == text)
+        var links: [String] = []
+        linked.enumerateAttribute(.link, in: NSRange(location: 0, length: linked.length)) { value, _, _ in
+            if let url = value as? URL { links.append(url.absoluteString) }
+        }
+        #expect(links == ["https://example.com/review/42", "mailto:help@example.com"])
+        #expect(linked.string == text)
+    }
+
+    @Test("A plain-text body takes the height its text needs at the width it is given, so none of it is cut off",
+          arguments: [CGFloat(180), 320, 640])
+    func plainTextHeight(width: CGFloat) throws {
+        let text = String(repeating: "Read it at https://example.com/review/42 or write to help@example.com.\n\n", count: 6)
+        let measured = NSHostingController(rootView: PlainMessageText(text: text))
+            .sizeThatFits(in: CGSize(width: width, height: .greatestFiniteMagnitude))
+        let view = NSTextView(frame: CGRect(x: 0, y: 0, width: width, height: 100))
+        view.textContainerInset = .zero
+        let container = try #require(view.textContainer)
+        container.lineFragmentPadding = 0
+        view.textStorage?.setAttributedString(PlainMessageText.linked(text))
+        let layout = try #require(view.layoutManager)
+        layout.ensureLayout(for: container)
+        #expect(measured.width == width)
+        #expect(measured.height >= layout.usedRect(for: container).height)
     }
 
     @Test("A logo keeps its size and proportions beside a cell that claims all the width", arguments: [
