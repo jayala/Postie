@@ -12,11 +12,15 @@ All notable changes to Postie are documented here. The format is based on
   sidebar. Click it to switch accounts or add another one.
 - All Inboxes above Inbox when more than one account is connected, showing every
   account's inbox together.
+- Press Esc to close the open conversation. In the search field, Esc still clears
+  the search.
 
 ### Changed
 
 - Inbox and the other folders now show only the selected account instead of every
   account merged. Search and new messages follow the account on screen.
+- Opening Postie or a folder no longer opens the first conversation and marks it
+  as read. Nothing is selected until you choose a conversation.
 
 ### Fixed
 
