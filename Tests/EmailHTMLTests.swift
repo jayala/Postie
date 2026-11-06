@@ -185,6 +185,42 @@ struct EmailHTMLTests {
         await Task.yield()
     }
 
+    @Test("Addresses written as text become links, without their surrounding punctuation")
+    func addressesBecomeLinks() async throws {
+        let page = BrowserFixture()
+        defer { page.close() }
+        _ = try await page.load("""
+        <p id="review">Review: https://admin.example.com/evidence/EH-1</p>
+        <p id="sentence">See (https://example.com/a_(b)), www.example.org. Or write to help@example.com.</p>
+        <p id="existing"><a href="https://example.com/real">https://example.com/shown</a></p>
+        <style id="css">.a { background: url(https://example.com/x.png); }</style>
+        <p id="plain">Version 1.2 is out: no address here.</p>
+        """)
+        let result = try await page.inspect("""
+        const links = (id) => [...document.getElementById(id).querySelectorAll('a')].map(link => link.getAttribute('href'));
+        return {
+            review: links('review'), reviewText: document.getElementById('review').textContent,
+            sentence: links('sentence'), sentenceText: document.getElementById('sentence').textContent,
+            existing: links('existing'), css: links('css'), plain: links('plain')
+        };
+        """)
+        #expect(result["review"] as? [String] == ["https://admin.example.com/evidence/EH-1"])
+        #expect(result["reviewText"] as? String == "Review: https://admin.example.com/evidence/EH-1")
+        #expect(result["sentence"] as? [String] == ["https://example.com/a_(b)", "http://www.example.org", "mailto:help@example.com"])
+        #expect(result["sentenceText"] as? String == "See (https://example.com/a_(b)), www.example.org. Or write to help@example.com.")
+        #expect(result["existing"] as? [String] == ["https://example.com/real"])
+        #expect(result["css"] as? [String] == [])
+        #expect(result["plain"] as? [String] == [])
+    }
+
+    @Test("Only web and mail addresses in plain text become links")
+    func plainTextLinks() {
+        let text = "Café: https://example.com/evidence/EH-1\r\nWrite to help@example.com, not javascript:alert(1)."
+        let linked = PlainMessageText.linked(text)
+        #expect(linked.runs.compactMap(\.link).map(\.absoluteString) == ["https://example.com/evidence/EH-1", "mailto:help@example.com"])
+        #expect(String(linked.characters) == text)
+    }
+
     @Test("A logo keeps its size and proportions beside a cell that claims all the width", arguments: [
         #"<img id="logo" src="\#(squareImage)" width="90" height="90" style="display: block; height: 90px;">"#,
         #"<img id="logo" src="\#(squareImage)" style="display: block; width: 90px; height: 90px;">"#,

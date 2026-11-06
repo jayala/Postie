@@ -14,6 +14,8 @@ All notable changes to Postie are documented here. The format is based on
   account's inbox together.
 - Press Esc to close the open conversation. In the search field, Esc still clears
   the search.
+- A conversation's labels, such as Inbox and the ones you created in Gmail, next
+  to its subject.
 
 ### Changed
 
@@ -32,6 +34,7 @@ All notable changes to Postie are documented here. The format is based on
   instead of an empty box. They are downloaded when the message is opened and then
   also work offline.
 - Email images on servers that use plain HTTP now load.
+- Web and email addresses written out as text in an email are now clickable.
 
 ## [0.3.0] - 2026-10-14
 
