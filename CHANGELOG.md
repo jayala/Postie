@@ -16,6 +16,9 @@ All notable changes to Postie are documented here. The format is based on
   the search.
 - A conversation's labels, such as Inbox and the ones you created in Gmail, next
   to its subject.
+- Select several conversations with Shift or Command to archive them, move them to
+  the Trash, or forward them together in one message. Reply and Reply All are
+  disabled while several are selected.
 
 ### Changed
 
