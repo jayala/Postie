@@ -4,6 +4,7 @@ enum SettingsKey {
     static let showsDockBadge = "showsDockBadge"
     static let usesPriorityInbox = "usesPriorityInbox"
     static let collapsedInboxSections = "collapsedInboxSections"
+    static let collapsedLabelGroups = "collapsedLabelGroups"
 }
 
 struct SettingsView: View {

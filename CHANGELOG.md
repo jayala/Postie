@@ -26,6 +26,10 @@ All notable changes to Postie are documented here. The format is based on
   and unread, Starred, and Everything else, including older mail further down the
   Inbox. Click a heading to collapse its section. A conversation stays in its section
   while it is selected, so reading or unflagging it doesn't move it away.
+- Your Gmail labels in the sidebar, nested as they are in Gmail, with how many
+  conversations are unread. Click one to see its mail. Labels you set to show only
+  when unread, or to hide, are under More. Archiving in a label takes the conversation
+  out of the Inbox and leaves it in the label.
 
 ### Changed
 

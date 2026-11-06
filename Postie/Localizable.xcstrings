@@ -291,6 +291,12 @@
     "Junk" : {
       "comment" : "Mailbox name"
     },
+    "Label" : {
+      "comment" : "Title of a Gmail label whose name is not known"
+    },
+    "Labels" : {
+
+    },
     "Loading" : {
       "comment" : "VoiceOver label of a progress spinner"
     },
@@ -337,6 +343,9 @@
       "comment" : "VoiceOver label of a message header; the sender follows"
     },
     "Messages that are waiting to be sent, or could not be, appear here." : {
+
+    },
+    "More" : {
 
     },
     "Move %lld Conversations to Trash" : {
