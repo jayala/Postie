@@ -65,9 +65,15 @@ struct ConversationListView: View {
             .overlay {
                 if hub.list.isEmpty {
                     ListPlaceholder(isLoading: hub.isLoadingMailbox || hub.isRestoringCache,
-                                    isSearching: hub.isSearchActive, mailbox: hub.mailbox)
+                                    isSearching: hub.isSearchActive, filtersUnread: hub.filtersUnread, mailbox: hub.mailbox)
                         .allowsHitTesting(false)
                 }
+            }
+        }
+        .toolbar {
+            // The only placement that stays over this column. The others join the detail column's buttons.
+            ToolbarItem(placement: .navigation) {
+                UnreadFilterToggle(hub: hub)
             }
         }
     }
@@ -106,6 +112,20 @@ struct ConversationListView: View {
                 }
                 .onAppear { model.conversationAppeared(item.key) }
         }
+    }
+}
+
+/// Narrows the list to unread mail, or brings back the rest of the folder.
+private struct UnreadFilterToggle: View {
+    let hub: MailHub
+
+    var body: some View {
+        Toggle(isOn: Binding(get: { hub.filtersUnread }, set: { hub.showsOnlyUnread = $0 })) {
+            Label("Show Only Unread", systemImage: "line.3.horizontal.decrease")
+        }
+        .toggleStyle(.button)
+        .disabled(!hub.canFilterUnread)
+        .help(hub.filtersUnread ? String(localized: "Show All Mail") : String(localized: "Show Only Unread"))
     }
 }
 
@@ -206,6 +226,7 @@ private struct SeveralConversationsContextMenu: View {
 private struct ListPlaceholder: View {
     let isLoading: Bool
     let isSearching: Bool
+    let filtersUnread: Bool
     let mailbox: Mailbox
 
     var body: some View {
@@ -220,6 +241,12 @@ private struct ListPlaceholder: View {
                 Label("No matching mail", systemImage: "magnifyingglass")
             } description: {
                 Text("Try other words, or use Gmail search such as from:name or has:attachment.")
+            }
+        } else if filtersUnread {
+            ContentUnavailableView {
+                Label("No unread mail", systemImage: "line.3.horizontal.decrease")
+            } description: {
+                Text("Turn off the filter to see the rest of this folder.")
             }
         } else if mailbox == .outbox {
             ContentUnavailableView {

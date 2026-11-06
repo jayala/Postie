@@ -3,8 +3,11 @@ import Testing
 @testable import Postie
 
 /// A Gmail account that serves fixed mail and records what is done to it.
-actor HubAPI: GmailSearching, GmailPriorityLoading, GmailMutating, GmailSending {
+actor HubAPI: GmailSearching, GmailPriorityLoading, GmailUnreadLoading, GmailMutating, GmailSending {
     private(set) var mail: [GmailConversation]
+    /// What asking for the folder's unread threads finds, page by page.
+    private var unreadPages: [[GmailConversation]] = []
+    private(set) var unreadRequests: [(mailbox: Mailbox, pageToken: String?)] = []
     /// Threads past the first page, which only come up when asking for the priority ones.
     private var olderPriorityMail: [GmailConversation] = []
     /// What each request for the priority threads already knew about.
@@ -36,6 +39,15 @@ actor HubAPI: GmailSearching, GmailPriorityLoading, GmailMutating, GmailSending 
         return olderPriorityMail.filter { !known.contains($0.id) }
     }
     func setOlderPriorityMail(_ mail: [GmailConversation]) { olderPriorityMail = mail }
+    func unreadThreads(in mailbox: Mailbox, excluding known: Set<String>, pageToken: String?) async throws -> GmailPage {
+        if let failure { throw failure }
+        unreadRequests.append((mailbox, pageToken))
+        let index = pageToken.flatMap(Int.init) ?? 0
+        guard unreadPages.indices.contains(index) else { return GmailPage(conversations: [], nextPageToken: nil) }
+        return GmailPage(conversations: unreadPages[index].filter { !known.contains($0.id) },
+                         nextPageToken: unreadPages.indices.contains(index + 1) ? String(index + 1) : nil)
+    }
+    func setUnreadPages(_ pages: [[GmailConversation]]) { unreadPages = pages }
     func unreadInboxCount() async throws -> Int { mail.filter(\.isUnread).count }
     func failRequests(with failure: GmailError?) { self.failure = failure }
     private func take(_ threadID: String) throws {

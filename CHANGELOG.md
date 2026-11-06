@@ -30,6 +30,9 @@ All notable changes to Postie are documented here. The format is based on
   conversations are unread. Click one to see its mail. Labels you set to show only
   when unread, or to hide, are under More. Archiving in a label takes the conversation
   out of the Inbox and leaves it in the label.
+- A filter button above the conversation list, to show only the folder's unread mail,
+  including mail further back than the list has loaded. A conversation you read stays
+  until you move on. Choosing another folder or account turns the filter off.
 
 ### Changed
 

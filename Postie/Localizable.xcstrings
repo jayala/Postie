@@ -381,6 +381,9 @@
     "No matching mail" : {
 
     },
+    "No unread mail" : {
+
+    },
     "Not sent: %@" : {
 
     },
@@ -516,6 +519,12 @@
     "Sent" : {
       "comment" : "Mailbox name"
     },
+    "Show All Mail" : {
+
+    },
+    "Show Only Unread" : {
+
+    },
     "Show quoted text" : {
       "comment" : "Tooltip of the button that expands the quoted history of an email"
     },
@@ -577,6 +586,9 @@
 
     },
     "Try other words, or use Gmail search such as from:name or has:attachment." : {
+
+    },
+    "Turn off the filter to see the rest of this folder." : {
 
     },
     "U" : {

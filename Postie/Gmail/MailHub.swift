@@ -182,6 +182,15 @@ final class MailHub {
             if usesPriorityInbox { Task { await refresh() } }
         }
     }
+    /// Whether the list leaves out read mail. It applies to the folder on screen, so choosing another one turns it off.
+    var showsOnlyUnread = false {
+        didSet {
+            guard showsOnlyUnread != oldValue else { return }
+            for session in sessions { session.reader.loadsUnreadThreads = showsOnlyUnread }
+            // Asks Gmail for the unread mail further back than the list has loaded.
+            if showsOnlyUnread { Task { await refresh() } }
+        }
+    }
     private(set) var collapsedSections: Set<InboxSection>
     /// The account the open label belongs to. Another account may well have a label with the same ID.
     private var labelOwnerID: String?
@@ -189,6 +198,8 @@ final class MailHub {
     private var collapsedLabelGroups: [String: [String]]
     /// The section each selected conversation was in when selected. Reading or flagging it won't move it from under you.
     private var heldSections: [ConversationKey: InboxSection] = [:]
+    /// The selected conversations, which stay in the list when the unread filter would leave them out, so reading one doesn't close it.
+    private var heldConversations: Set<ConversationKey> = []
     @ObservationIgnored private var folderListCache: FolderListCache?
     @ObservationIgnored private var searchTokens: [String: String] = [:]
     @ObservationIgnored private var searchGeneration = Generation()
@@ -282,6 +293,7 @@ final class MailHub {
         }
         let reader = GmailReaderStore(api: api, mailbox: mailbox.isLabel ? .inbox : mailbox, cache: savedSession)
         reader.loadsPriorityThreads = usesPriorityInbox
+        reader.loadsUnreadThreads = showsOnlyUnread
         await reader.restoreCachedMailbox()
         return AccountSession(identity: identity, reader: reader)
     }
@@ -345,6 +357,7 @@ final class MailHub {
     }
 
     func show(_ selection: MailboxSelection) {
+        showsOnlyUnread = false
         switch selection {
         case .allInboxes:
             wantsAllInboxes = true
@@ -357,6 +370,7 @@ final class MailHub {
 
     /// Shows the account's mail: the folder that is open, or its Inbox when coming from All Inboxes or a label.
     func selectAccount(_ id: String) {
+        showsOnlyUnread = false
         accounts.selectAccount(id)
         wantsAllInboxes = false
         if mailbox.isLabel { changeMailbox(.inbox) }
@@ -408,10 +422,11 @@ final class MailHub {
             if !isSearching { await search(pageAfter: true) }
             return
         }
+        let filtersUnread = filtersUnread
         await withTaskGroup(of: Void.self) { group in
-            for session in visibleSessions where session.reader.nextPageToken != nil {
+            for session in visibleSessions where (filtersUnread ? session.reader.nextUnreadPageToken : session.reader.nextPageToken) != nil {
                 let reader = session.reader
-                group.addTask { await reader.loadMore() }
+                group.addTask { await (filtersUnread ? reader.loadMoreUnread() : reader.loadMore()) }
             }
         }
     }
@@ -430,8 +445,15 @@ final class MailHub {
         let isGrouped: Bool
         let collapsed: Set<InboxSection>
         let placements: [ConversationKey: InboxSection]
+        let filtersUnread: Bool
+        let keptRead: Set<ConversationKey>
         let list: MergedList
     }
+
+    /// Queued mail and drafts are never unread, and a search has `is:unread` for this.
+    var canFilterUnread: Bool { mailbox != .outbox && mailbox != .drafts && !isSearchActive }
+    /// Whether the unread filter is having an effect right now.
+    var filtersUnread: Bool { showsOnlyUnread && canFilterUnread }
 
     /// What the list shows: search results while searching, else the conversations of the accounts on screen, newest first.
     /// Merging and sorting happen only when an account's conversations actually changed, however often the views read this.
@@ -445,11 +467,14 @@ final class MailHub {
         let revisions = visible.map { ReaderRevision(accountID: $0.id, revision: $0.reader.conversationsRevision) }
         let outboxRevision = mailbox == .outbox ? outbox.revision : 0
         let isGrouped = usesPriorityInbox && mailbox == .inbox
+        let filtersUnread = filtersUnread
+        let keptRead = filtersUnread ? heldConversations : []
         if let cache = folderListCache, cache.revisions == revisions, cache.outboxRevision == outboxRevision, cache.mailbox == mailbox,
-           cache.isGrouped == isGrouped, cache.collapsed == collapsedSections, !isGrouped || cache.placements == placements(in: cache.list) {
+           cache.isGrouped == isGrouped, cache.collapsed == collapsedSections, cache.filtersUnread == filtersUnread, cache.keptRead == keptRead,
+           !isGrouped || cache.placements == placements(in: cache.list) {
             return cache.list
         }
-        let merged: [MergedConversation]
+        var merged: [MergedConversation]
         if mailbox == .outbox {
             merged = outbox.items.compactMap { item in
                 visible.first { $0.id == item.accountID }.map { MergedConversation(key: ConversationKey(accountID: $0.id, threadID: item.id), conversation: outboxConversation(item, from: $0)) }
@@ -463,6 +488,7 @@ final class MailHub {
             }
             .sorted { $0.conversation.latestDate > $1.conversation.latestDate }
         }
+        if filtersUnread { merged.removeAll { !$0.conversation.isUnread && !keptRead.contains($0.key) } }
         var list = MergedList(merged)
         var placements: [ConversationKey: InboxSection] = [:]
         if isGrouped {
@@ -470,7 +496,8 @@ final class MailHub {
             list = MergedList(grouping: merged, collapsed: collapsedSections, placements: placements)
         }
         folderListCache = FolderListCache(revisions: revisions, outboxRevision: outboxRevision, mailbox: mailbox, isGrouped: isGrouped,
-                                          collapsed: collapsedSections, placements: placements, list: list)
+                                          collapsed: collapsedSections, placements: placements,
+                                          filtersUnread: filtersUnread, keptRead: keptRead, list: list)
         return list
     }
 
@@ -481,8 +508,9 @@ final class MailHub {
         }
     }
 
-    /// Keeps the selected conversations in their sections until they are no longer selected.
-    func holdSections(of keys: Set<ConversationKey>) {
+    /// Keeps the selected conversations in the list and in their sections until they are no longer selected.
+    func holdInPlace(_ keys: Set<ConversationKey>) {
+        if keys != heldConversations { heldConversations = keys }
         let held = keys.reduce(into: [ConversationKey: InboxSection]()) { result, key in
             result[key] = heldSections[key] ?? folderList[key].map { InboxSection($0.conversation) }
         }
@@ -625,7 +653,11 @@ final class MailHub {
     var isLoadingMailbox: Bool { isSearchActive ? isSearching : visibleSessions.contains { $0.reader.isLoadingMailbox } }
     var isRestoringCache: Bool { visibleSessions.contains { $0.reader.isRestoringCache } }
     var showingCachedMail: Bool { !isSearchActive && visibleSessions.contains { $0.reader.showingCachedMail } }
-    var hasMorePages: Bool { isSearchActive ? !searchTokens.isEmpty : visibleSessions.contains { $0.reader.nextPageToken != nil } }
+    var hasMorePages: Bool {
+        if isSearchActive { return !searchTokens.isEmpty }
+        if filtersUnread { return visibleSessions.contains { $0.reader.nextUnreadPageToken != nil } }
+        return visibleSessions.contains { $0.reader.nextPageToken != nil }
+    }
     var lastRefreshed: Date? { visibleSessions.compactMap(\.reader.lastRefreshed).min() }
     var mailboxVersion: Int { sessions.reduce(searchVersion) { $0 + $1.reader.mailboxVersion } }
     var loadedCount: Int { list.count }

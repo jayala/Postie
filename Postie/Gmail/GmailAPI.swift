@@ -17,6 +17,12 @@ nonisolated protocol GmailPriorityLoading: Sendable {
     func priorityInboxThreads(excluding known: Set<String>) async throws -> [GmailConversation]
 }
 
+nonisolated protocol GmailUnreadLoading: Sendable {
+    /// One page of the folder's unread threads, newest first, leaving out those in `known`.
+    /// A page can come back empty and still have a next one, when all of it was known.
+    func unreadThreads(in mailbox: Mailbox, excluding known: Set<String>, pageToken: String?) async throws -> GmailPage
+}
+
 nonisolated protocol GmailAttachmentLoading: Sendable {
     func attachmentData(_ attachment: MailAttachment) async throws -> Data
     func embeddedImageData(contentID: String, messageID: String) async throws -> Data
@@ -164,7 +170,11 @@ actor GmailAPI: GmailSyncReading, GmailSearching, GmailPriorityLoading, GmailMut
         try await threads(in: mailbox, matching: query, pageToken: pageToken)
     }
 
-    private func threads(in mailbox: Mailbox?, matching search: String?, pageToken: String?) async throws -> GmailPage {
+    func unreadThreads(in mailbox: Mailbox, excluding known: Set<String>, pageToken: String?) async throws -> GmailPage {
+        try await threads(in: mailbox, matching: "is:unread", excluding: known, pageToken: pageToken)
+    }
+
+    private func threads(in mailbox: Mailbox?, matching search: String?, excluding known: Set<String> = [], pageToken: String?) async throws -> GmailPage {
         // Outbox is a local send queue, not a Gmail label: the hub lists it.
         guard mailbox != .outbox else { return GmailPage(conversations: [], nextPageToken: nil) }
         var query = [URLQueryItem(name: "maxResults", value: "25")]
@@ -186,7 +196,7 @@ actor GmailAPI: GmailSyncReading, GmailSearching, GmailPriorityLoading, GmailMut
         if !terms.isEmpty { query.append(URLQueryItem(name: "q", value: terms.joined(separator: " "))) }
         if let pageToken { query.append(URLQueryItem(name: "pageToken", value: pageToken)) }
         let page: GmailThreadList = try await get(path: "threads", query: query)
-        var seen: Set<String> = []
+        var seen = known
         let references = (page.threads ?? []).filter { seen.insert($0.id).inserted }
         // Gmail search is message-based; don't show a still-in-Inbox thread in Archive
         // just because another message in that thread matched the archive query.

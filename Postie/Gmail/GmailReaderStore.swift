@@ -34,12 +34,19 @@ final class GmailReaderStore {
     private(set) var lastRefreshed: Date?
     /// Whether refreshing the Inbox also brings in its important and starred threads, however old they are.
     @ObservationIgnored var loadsPriorityThreads = false
+    /// Whether refreshing also brings in the folder's unread threads, however old they are. They stay in the list once in it.
+    @ObservationIgnored var loadsUnreadThreads = false {
+        didSet { if !loadsUnreadThreads { nextUnreadPageToken = nil } }
+    }
+    /// Where the folder's unread threads continue, while `loadsUnreadThreads` is on.
+    private(set) var nextUnreadPageToken: String?
 
     @ObservationIgnored private let api: any GmailReading
     // What the account's API can do, worked out once instead of casting on every call.
     @ObservationIgnored private let mutator: (any GmailMutating)?
     @ObservationIgnored private let searcher: (any GmailSearching)?
     @ObservationIgnored private let priorityLoader: (any GmailPriorityLoading)?
+    @ObservationIgnored private let unreadLoader: (any GmailUnreadLoading)?
     @ObservationIgnored private let attachmentLoader: (any GmailAttachmentLoading)?
     @ObservationIgnored private let sender: (any GmailSending)?
     @ObservationIgnored private let signatureLoader: (any GmailSignatureLoading)?
@@ -70,6 +77,7 @@ final class GmailReaderStore {
         mutator = api as? any GmailMutating
         searcher = api as? any GmailSearching
         priorityLoader = api as? any GmailPriorityLoading
+        unreadLoader = api as? any GmailUnreadLoading
         attachmentLoader = api as? any GmailAttachmentLoading
         sender = api as? any GmailSending
         signatureLoader = api as? any GmailSignatureLoading
@@ -118,6 +126,7 @@ final class GmailReaderStore {
         conversations = []
         bodies = [:]
         nextPageToken = nil
+        nextUnreadPageToken = nil
         isLoadingMailbox = false
         isRestoringCache = false
         isLoadingConversation = false
@@ -307,7 +316,7 @@ final class GmailReaderStore {
                 needsAnotherSync = false
                 try await synchronizer.synchronize(mailbox: currentMailbox)
                 saved = try await cache?.loadMailbox(currentMailbox)
-                if let current = saved { saved = await addingPriorityThreads(to: current) }
+                if let current = saved { saved = await addingMissingThreads(to: current) }
                 try Task.checkCancellation()
                 guard folderGeneration == startedFolder else { return }
             } while needsAnotherSync
@@ -334,20 +343,27 @@ final class GmailReaderStore {
         }
     }
 
-    /// Saves the priority threads missing from the Inbox. History keeps them up to date from then on.
-    private func addingPriorityThreads(to saved: CachedGmailMailbox) async -> CachedGmailMailbox {
+    /// Saves the priority and unread threads missing from the folder. History keeps them up to date from then on.
+    private func addingMissingThreads(to saved: CachedGmailMailbox) async -> CachedGmailMailbox {
         guard let cache else { return saved }
+        let currentMailbox = mailbox
         let checkpoint = try? await cache.checkpoint()
-        let missing = await missingPriorityThreads(known: saved.conversations)
+        let missing = await missingThreads(known: saved.conversations)
         guard !missing.isEmpty else { return saved }
         do {
             return try await cache.savePage(GmailPage(conversations: missing, nextPageToken: saved.nextPageToken),
-                                            mailbox: .inbox, refreshing: false, checkpoint: checkpoint)
+                                            mailbox: currentMailbox, refreshing: false, checkpoint: checkpoint)
         } catch {
             // Mail changed meanwhile, most likely. The next refresh asks again.
-            if !(error is CancellationError) { Log.cache.error("Could not save the priority threads: \(error.localizedDescription)") }
+            if !(error is CancellationError) { Log.cache.error("Could not save the older threads: \(error.localizedDescription)") }
             return saved
         }
+    }
+
+    /// The threads a refresh brings in on top of the folder's own first page.
+    private func missingThreads(known: [GmailConversation]) async -> [GmailConversation] {
+        let priority = await missingPriorityThreads(known: known)
+        return priority + (await missingUnreadThreads(known: known + priority))
     }
 
     /// Failing here only means the older threads turn up at the next refresh, so it isn't reported as an error.
@@ -357,6 +373,55 @@ final class GmailReaderStore {
         catch {
             if !(error is CancellationError) { Log.api.error("Could not read the priority threads: \(error.localizedDescription, privacy: .public)") }
             return []
+        }
+    }
+
+    /// The first page of the folder's unread threads. As with the priority threads, the next refresh tries again after a failure.
+    private func missingUnreadThreads(known: [GmailConversation]) async -> [GmailConversation] {
+        guard loadsUnreadThreads, let unreadLoader else { return [] }
+        let startedFolder = folderGeneration
+        do {
+            let page = try await unreadLoader.unreadThreads(in: mailbox, excluding: Set(known.map(\.id)), pageToken: nil)
+            guard folderGeneration == startedFolder, loadsUnreadThreads else { return [] }
+            nextUnreadPageToken = page.nextPageToken
+            return page.conversations
+        } catch {
+            if !(error is CancellationError) { Log.api.error("Could not read the unread threads: \(error.localizedDescription, privacy: .public)") }
+            return []
+        }
+    }
+
+    /// Adds the next unread threads to the list. A page of nothing new adds no row to scroll to, so it goes on to the page after.
+    func loadMoreUnread() async {
+        guard !isLoadingMailbox, let unreadLoader, nextUnreadPageToken != nil else { return }
+        let startedFolder = folderGeneration
+        let currentMailbox = mailbox
+        isLoadingMailbox = true
+        mailboxError = nil
+        defer { if folderGeneration == startedFolder { isLoadingMailbox = false } }
+        do {
+            let checkpoint = try? await cache?.checkpoint()
+            var found: [GmailConversation] = []
+            while found.isEmpty, let pageToken = nextUnreadPageToken {
+                let page = try await unreadLoader.unreadThreads(in: currentMailbox, excluding: Set(conversations.map(\.id)), pageToken: pageToken)
+                try Task.checkCancellation()
+                guard folderGeneration == startedFolder, loadsUnreadThreads else { return }
+                nextUnreadPageToken = page.nextPageToken == pageToken ? nil : page.nextPageToken
+                found = page.conversations
+            }
+            guard !found.isEmpty else { return }
+            if let cache {
+                let saved = try await cache.savePage(GmailPage(conversations: found, nextPageToken: nextPageToken),
+                                                     mailbox: currentMailbox, refreshing: false, checkpoint: checkpoint)
+                guard isCurrent(startedFolder) else { return }
+                conversations = saved.conversations
+            } else {
+                conversations += found
+            }
+        } catch {
+            guard isCurrent(startedFolder), !(error is CancellationError) else { return }
+            Log.sync.error("Loading the unread threads failed: \(error.localizedDescription)")
+            mailboxError = error.localizedDescription
         }
     }
 
@@ -635,7 +700,7 @@ final class GmailReaderStore {
             var page = try await api.mailbox(currentMailbox, pageToken: pageToken)
             // In the same step as the page, so that replacing the list never drops an older thread that is open.
             if refreshing {
-                let missing = await missingPriorityThreads(known: page.conversations)
+                let missing = await missingThreads(known: page.conversations)
                 page = GmailPage(conversations: page.conversations + missing, nextPageToken: page.nextPageToken)
             }
             try Task.checkCancellation()

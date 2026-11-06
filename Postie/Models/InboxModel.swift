@@ -20,7 +20,7 @@ final class InboxModel {
     /// Bumped when an explicit removal should hand keyboard focus back to the list.
     private(set) var listFocusRequest = 0
     private var selection = ConversationSelection<ConversationKey>() {
-        didSet { hub.holdSections(of: selection.selectedIDs) }
+        didSet { hub.holdInPlace(selection.selectedIDs) }
     }
     /// The window's history, which also backs the Edit menu and undoing typing in the search field.
     @ObservationIgnored weak var undoManager: UndoManager?

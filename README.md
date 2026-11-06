@@ -34,6 +34,9 @@ subscriptions, AI features, or workspace bloat.
 - Archive, trash, star, and read/unread actions
 - Select several conversations with Shift or Command to archive, trash, or forward
   them together. They are forwarded in one message
+- A filter button above the conversation list shows only the folder's unread mail,
+  including mail further back than the list has loaded. A conversation you read stays
+  until you move on. Choosing another folder or account turns the filter off
 - Undo and Redo (⌘Z and ⇧⌘Z) for archive, trash, flag, and read/unread, several
   steps back, until Postie quits. Deleting a draft or a queued message can't be undone
 - Search as you type, powered by Gmail, in the account on screen or across all
