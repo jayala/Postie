@@ -28,6 +28,10 @@ All notable changes to Postie are documented here. The format is based on
   into a thin strip or hidden.
 - Thin rule and spacer images in emails keep the size the email gives them instead
   of growing into large squares.
+- Images embedded in an email, such as many signatures and logos, are now shown
+  instead of an empty box. They are downloaded when the message is opened and then
+  also work offline.
+- Email images on servers that use plain HTTP now load.
 
 ## [0.3.0] - 2026-10-14
 
