@@ -44,6 +44,8 @@ subscriptions, AI features, or workspace bloat.
   Results are not stored in the local cache
 - Reading attachments: shown in the message header and as a chip in the list;
   double-click to open, or use the context menu to save, share, or copy
+- Postie remembers how wide you make the sidebar and the conversation list.
+  Double-click a divider to put that column back to its default width
 - Local SQLite cache for previously loaded mail
 - Incremental Gmail synchronization while the app is running
 - Native light and dark mode

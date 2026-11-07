@@ -47,10 +47,15 @@ struct GmailInboxView: View {
                 }
             )
             .safeAreaBar(edge: .bottom) { AccountSwitcher(model: model) }
-            .navigationSplitViewColumnWidth(min: 180, ideal: 200, max: 260)
+            .navigationSplitViewColumnWidth(
+                min: MailColumn.sidebar.widthRange.lowerBound, ideal: MailColumn.sidebar.defaultWidth, max: MailColumn.sidebar.widthRange.upperBound
+            )
         } content: {
             ConversationListView(model: model, listIsFocused: $listIsFocused)
-                .navigationSplitViewColumnWidth(min: 280, ideal: 330, max: 440)
+                .background { ColumnWidthKeeper(hub: hub) }
+                .navigationSplitViewColumnWidth(
+                    min: MailColumn.list.widthRange.lowerBound, ideal: MailColumn.list.defaultWidth, max: MailColumn.list.widthRange.upperBound
+                )
         } detail: {
             ConversationDetailView(model: model)
                 .navigationSplitViewColumnWidth(min: 420, ideal: 620)

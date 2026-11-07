@@ -200,6 +200,8 @@ final class MailHub {
     private var heldSections: [ConversationKey: InboxSection] = [:]
     /// The selected conversations, which stay in the list when the unread filter would leave them out, so reading one doesn't close it.
     private var heldConversations: Set<ConversationKey> = []
+    /// The widths the columns were dragged to. The split view lays them out, so this changing updates no view.
+    @ObservationIgnored private var columnWidths: [MailColumn: CGFloat] = [:]
     @ObservationIgnored private var folderListCache: FolderListCache?
     @ObservationIgnored private var searchTokens: [String: String] = [:]
     @ObservationIgnored private var searchGeneration = Generation()
@@ -227,6 +229,9 @@ final class MailHub {
         usesPriorityInbox = preferences?.bool(forKey: SettingsKey.usesPriorityInbox) ?? false
         collapsedSections = Set((preferences?.stringArray(forKey: SettingsKey.collapsedInboxSections) ?? []).compactMap(InboxSection.init(rawValue:)))
         collapsedLabelGroups = preferences?.dictionary(forKey: SettingsKey.collapsedLabelGroups) as? [String: [String]] ?? [:]
+        for column in MailColumn.allCases {
+            if let saved = preferences?.object(forKey: column.settingsKey) as? Double { columnWidths[column] = saved }
+        }
         self.cache = cache
         self.makeAPI = makeAPI
         isPreparing = persistsMail && cache == nil
@@ -354,6 +359,18 @@ final class MailHub {
         if expanded { collapsed.remove(path) } else { collapsed.insert(path) }
         collapsedLabelGroups[id] = collapsed.isEmpty ? nil : collapsed.sorted()
         preferences?.set(collapsedLabelGroups, forKey: SettingsKey.collapsedLabelGroups)
+    }
+
+    /// The width a column was last dragged to, or its default.
+    func columnWidth(_ column: MailColumn) -> CGFloat {
+        let range = column.widthRange
+        return min(max(columnWidths[column] ?? column.defaultWidth, range.lowerBound), range.upperBound)
+    }
+
+    /// Remembers a column's width. Without one, the column goes back to its default.
+    func setColumnWidth(_ width: CGFloat?, for column: MailColumn) {
+        columnWidths[column] = width
+        preferences?.set(width.map(Double.init), forKey: column.settingsKey)
     }
 
     func show(_ selection: MailboxSelection) {

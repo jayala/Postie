@@ -5,6 +5,8 @@ enum SettingsKey {
     static let usesPriorityInbox = "usesPriorityInbox"
     static let collapsedInboxSections = "collapsedInboxSections"
     static let collapsedLabelGroups = "collapsedLabelGroups"
+    static let sidebarWidth = "sidebarWidth"
+    static let conversationListWidth = "conversationListWidth"
 }
 
 struct SettingsView: View {
