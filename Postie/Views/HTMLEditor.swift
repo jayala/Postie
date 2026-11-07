@@ -320,6 +320,7 @@ final class EditorWebView: WKWebView {
 enum RichTextPolicy {
     static let world = WKContentWorld.world(name: "Postie.Editor")
     static let handler = "editor"
+    static let longTextMark = "data-postie-long-text"
 
     static func configuration() -> WKWebViewConfiguration {
         let configuration = WKWebViewConfiguration()
@@ -341,8 +342,12 @@ enum RichTextPolicy {
         :root { color-scheme: light dark; }
         html, body { margin: 0; height: 100%; }
         body { font: 14px -apple-system, sans-serif; line-height: 1.4; color: CanvasText; background-color: Canvas; }
-        #editor { box-sizing: border-box; min-height: 100%; padding: 12px 20px; outline: none; overflow-wrap: anywhere; }
+        #editor { box-sizing: border-box; min-height: 100%; padding: 12px 20px; outline: none; overflow-wrap: break-word; }
         #editor img, #editor table { max-width: 100%; }
+        /* Long text next to a table must not pass on the `anywhere` that the script's mark gives it. */
+        #editor table { overflow-wrap: break-word; }
+        /* Important, or a `word-wrap` in the inline style of a quoted cell would win. */
+        #editor [\(longTextMark)] { overflow-wrap: anywhere !important; }
         #editor a { color: LinkText; }
         #editor blockquote { margin: 0 0 0 0.8ex; border-left: 1px solid #ccc; padding-left: 1ex; }
         </style></head><body><div id="editor" contenteditable="true" spellcheck="true" role="textbox"
@@ -394,8 +399,26 @@ enum RichTextPolicy {
             copy.querySelectorAll('.gmail_quote, .gmail_signature').forEach(part => part.remove());
             return text(copy).trim();
         }
-        function snapshot() { return { html: editor.innerHTML, text: text(editor), own: typed() }; }
-        function report(type) { handler.postMessage(Object.assign({ type }, snapshot())); }
+        // Lets long unbroken text break anywhere, as `EmailHTMLPolicy.layoutScript` does when reading mail.
+        // It is a mark for the style sheet because a style here would go out with the message: see `sent`.
+        function markLongText() {
+            const nodes = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT);
+            while (nodes.nextNode()) {
+                if (/\#(EmailHTMLPolicy.longText)/.test(nodes.currentNode.data)) {
+                    nodes.currentNode.parentElement.setAttribute('\#(longTextMark)', '');
+                }
+            }
+        }
+        function sent() {
+            const copy = editor.cloneNode(true);
+            copy.querySelectorAll('[\#(longTextMark)]').forEach(element => element.removeAttribute('\#(longTextMark)'));
+            return copy.innerHTML;
+        }
+        function snapshot() { return { html: sent(), text: text(editor), own: typed() }; }
+        function report(type) {
+            markLongText();
+            handler.postMessage(Object.assign({ type }, snapshot()));
+        }
         function changed() {
             clearTimeout(timer);
             timer = setTimeout(() => report('change'), 100);

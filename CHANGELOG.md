@@ -52,6 +52,9 @@ All notable changes to Postie are documented here. The format is based on
   an extra scrollbar.
 - Images in table-based emails, such as logos in a header, are no longer squashed
   into a thin strip or hidden.
+- Labels in table-based emails, such as delivery notices, no longer collapse into
+  a narrow column with one letter per line, whether you are reading the email or
+  quoting it in a reply or forward.
 - Thin rule and spacer images in emails keep the size the email gives them instead
   of growing into large squares.
 - Images embedded in an email, such as many signatures and logos, are now shown

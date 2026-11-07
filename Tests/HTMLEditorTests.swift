@@ -39,6 +39,23 @@ private final class EditorHarness: NSObject, WKScriptMessageHandler, WKNavigatio
         let value = try await call("postieEditor.snapshot()") as? [String: Any]
         return try #require(value.flatMap(EditorContent.init))
     }
+
+    /// How wide the page is, which is wider than the view when something in it does not wrap.
+    func contentWidth() async throws -> Int {
+        try #require(try await call("document.documentElement.scrollWidth") as? Int)
+    }
+
+    /// How many lines an element's text takes up.
+    func lines(of id: String) async throws -> Int {
+        let script = """
+        (() => {
+            const text = document.createRange();
+            text.selectNodeContents(document.getElementById('\(id)'));
+            return text.getClientRects().length;
+        })()
+        """
+        return try #require(try await call(script) as? Int)
+    }
 }
 
 @Suite("HTML editor", .timeLimit(.minutes(1)))
@@ -68,6 +85,72 @@ struct HTMLEditorTests {
         #expect(content.ownText.isEmpty)
         #expect(content.text.contains("On Monday, A wrote:\n> Line one\n> Line two\n> \u{2022} Item"))
         #expect(content.text.contains("site (https://example.com)"))
+    }
+
+    @Test("A column of a quoted table keeps its words whole beside a cell that claims all the width", arguments: [
+        labelledTable(value: "<strong>Alex Doe</strong>"),
+        labelledTable(value: "<a href=\"\(longAddress)\">\(longAddress)</a>"),
+        labelledTable(value: longAddress),
+        // Text that may break anywhere must not pass that on to a table next to it.
+        "<div>\(longRule)\(labelledTable(value: "Alex Doe"))</div>"
+    ])
+    func quotedLabelColumn(table: String) async throws {
+        let harness = EditorHarness(html: HTMLText.emptyLine + "<div class=\"gmail_quote\"><blockquote class=\"gmail_quote\">\(table)</blockquote></div>")
+        await harness.waitUntilReady()
+        #expect(try await harness.lines(of: "label") == 1)
+        #expect(try await harness.contentWidth() <= 600)
+    }
+
+    @Test("Long unbroken text wraps instead of making the message wider than its view, without changing what is sent", arguments: [
+        "<table><tbody><tr><td>\(longAddress)</td></tr></tbody></table>",
+        "<table><tbody><tr><td><a href=\"\(longAddress)\">\(longAddress)</a></td></tr></tbody></table>",
+        "<table><tbody><tr><td>\(longRule)</td></tr></tbody></table>",
+        // Emails often ask for this themselves, which would otherwise win over the editor's style sheet.
+        "<table><tbody><tr><td style=\"word-wrap: break-word\">\(longAddress)</td></tr></tbody></table>",
+        "<div>\(longAddress)</div>"
+    ])
+    func longTextWraps(html: String) async throws {
+        let harness = EditorHarness(html: html)
+        await harness.waitUntilReady()
+        #expect(try await harness.contentWidth() <= 600)
+        #expect(harness.messages.first { $0["type"] as? String == "ready" }?["html"] as? String == html)
+        #expect(try await harness.snapshot().html == html)
+    }
+
+    @Test("A long address added later wraps too, and what is sent stays as written")
+    func longTextAddedLater() async throws {
+        let harness = EditorHarness(html: "<div>Hello</div>")
+        await harness.waitUntilReady()
+        let table = "<table><tbody><tr><td>\(longAddress)</td></tr></tbody></table>"
+        _ = try await harness.webView.callAsyncJavaScript(
+            "const e = document.getElementById('editor'); e.focus(); document.execCommand('insertHTML', false, table); e.dispatchEvent(new Event('input'))",
+            arguments: ["table": table], contentWorld: RichTextPolicy.world
+        )
+        try await Task.sleep(for: .milliseconds(400))
+        #expect(try await harness.contentWidth() <= 600)
+        let change = try #require(harness.messages.last { $0["type"] as? String == "change" })
+        #expect((change["html"] as? String)?.contains(table) == true)
+    }
+
+    @Test("Marking long text while typing leaves the cursor and Undo alone")
+    func longTextKeepsEditing() async throws {
+        let harness = EditorHarness(html: "<div>Hello</div>")
+        // Undo belongs to the window.
+        let window = NSWindow(contentRect: harness.webView.frame, styleMask: .borderless, backing: .buffered, defer: false)
+        window.contentView = harness.webView
+        await harness.waitUntilReady()
+        let type = "document.execCommand('insertText', false, typed); document.getElementById('editor').dispatchEvent(new Event('input'))"
+        _ = try await harness.webView.callAsyncJavaScript(
+            "const e = document.getElementById('editor'); e.focus(); getSelection().selectAllChildren(e.firstChild); getSelection().collapseToEnd(); " + type,
+            arguments: ["typed": " " + longAddress], contentWorld: RichTextPolicy.world
+        )
+        try await Task.sleep(for: .milliseconds(400))
+        let marked = try await harness.call("document.querySelector('#editor [\(RichTextPolicy.longTextMark)]') !== null") as? Bool
+        #expect(marked == true)
+        _ = try await harness.webView.callAsyncJavaScript(type, arguments: ["typed": "!"], contentWorld: RichTextPolicy.world)
+        #expect(try await harness.snapshot().html == "<div>Hello \(longAddress)!</div>")
+        _ = try await harness.call("document.execCommand('undo')")
+        #expect(try await harness.snapshot().html.contains("!") == false)
     }
 
     @Test("Formatting commands change the markup")

@@ -95,6 +95,8 @@ enum EmailHTMLPolicy {
     static let heightHandler = "emailHeight"
     // Real threads with long quoted histories reach tens of thousands of points.
     static let maximumHeight: CGFloat = 500_000
+    // Text this long without a break is an address or a rule rather than a word.
+    static let longText = #"\S{40,}"#
     // WebKit's content-blocker regex dialect does not support alternation (|).
     static let contentRules = #"""
     [
@@ -153,8 +155,10 @@ enum EmailHTMLPolicy {
         <style>
         :root { color-scheme: \(dark ? "dark" : "light"); }
         body { display: flow-root; margin: 0; padding: 0; font: 13px -apple-system, sans-serif;
-               line-height: 1.5; color: CanvasText; background-color: Canvas; overflow-wrap: anywhere; }
+               line-height: 1.5; color: CanvasText; background-color: Canvas; overflow-wrap: break-word; }
         img, table { max-width: 100%; }
+        /* Long text next to a table must not pass on the `anywhere` the layout script gives it. */
+        table { overflow-wrap: break-word; }
         /* In a table cell a percentage limit lets the cell collapse, squashing the image to nothing. */
         td img, th img { max-width: 100vw; }
         /* Scale with the width. The layout script supplies the shape when both sizes are declared. */
@@ -229,6 +233,15 @@ enum EmailHTMLPolicy {
     // App-owned code runs in an isolated content world, not the email's page world.
     static let layoutScript = """
     (() => {
+        // Long unbroken text, such as an address, may break anywhere so that it can't widen the message.
+        // Ordinary words can't: a table cell could then shrink to one letter per line beside a cell with
+        // `width="100%"`, as a cell is only kept as wide as the longest piece of text it can't break.
+        const text = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+        while (text.nextNode()) {
+            if (/\(longText)/.test(text.currentNode.data)) {
+                text.currentNode.parentElement.style.overflowWrap = 'anywhere';
+            }
+        }
         // Automatic height follows the image file's shape, which would turn a 1×1 file declared as a
         // thin rule into a square. Use the declared shape, unless the email asks for a height itself.
         for (const image of document.images) {

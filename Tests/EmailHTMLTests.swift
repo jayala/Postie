@@ -5,6 +5,16 @@ import WebKit
 @testable import Postie
 
 private let squareImage = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
+let longAddress = "https://example.com/reset?token=" + String(repeating: "a1b2c3d4", count: 20)
+let longRule = String(repeating: "=", count: 120)
+
+func labelledTable(value: String) -> String {
+    """
+    <table width="100%" cellpadding="0" cellspacing="0"><tr>
+    <td id="label">Consignatario:</td><td width="100%">\(value)</td>
+    </tr></table>
+    """
+}
 
 @Suite("HTML email security", .serialized, .timeLimit(.minutes(1)))
 @MainActor
@@ -262,6 +272,44 @@ struct EmailHTMLTests {
         let size = try await page.inspect(renderedSize(of: "logo"))
         #expect(size["width"] as? Double == 90)
         #expect(size["height"] as? Double == 90)
+    }
+
+    @Test("A column beside a cell that claims all the width keeps its words whole", arguments: [
+        labelledTable(value: "<strong>Alex Doe</strong>"),
+        labelledTable(value: "<a href=\"\(longAddress)\">\(longAddress)</a>"),
+        labelledTable(value: longAddress),
+        // Text that may break anywhere must not pass that on to a table next to it.
+        "<div>\(longRule)\(labelledTable(value: "Alex Doe"))</div>",
+        "\(longRule)\(labelledTable(value: "Alex Doe"))"
+    ])
+    func labelColumn(html: String) async throws {
+        let page = BrowserFixture()
+        defer { page.close() }
+        _ = try await page.load(html)
+        let result = try await page.inspect("""
+        const text = document.createRange();
+        text.selectNodeContents(document.getElementById('label'));
+        return { lines: text.getClientRects().length, width: document.documentElement.scrollWidth };
+        """)
+        #expect(result["lines"] as? Int == 1)
+        #expect(try #require(result["width"] as? Int) <= 420)
+    }
+
+    @Test("Long unbroken text wraps instead of making the message wider than its view", arguments: [
+        "<p>\(longAddress)</p>",
+        "<p>\(longRule)</p>",
+        "<table><tr><td>\(longAddress)</td></tr></table>",
+        "<table><tr><td><a href=\"\(longAddress)\">\(longAddress)</a></td></tr></table>",
+        "<table><tr><td>\(longRule)</td></tr></table>",
+        "<table width=\"100%\"><tr><td>Reset your password:</td><td>\(longAddress)</td></tr></table>",
+        "<table><tr><td><table><tr><td><span>See \(longAddress) for more.</span></td></tr></table></td></tr></table>"
+    ])
+    func longTextWraps(html: String) async throws {
+        let page = BrowserFixture()
+        defer { page.close() }
+        _ = try await page.load(html)
+        let result = try await page.inspect("return { width: document.documentElement.scrollWidth };")
+        #expect(try #require(result["width"] as? Int) <= 420)
     }
 
     @Test("An image wider than the message is scaled down to fit, in proportion", arguments: [
