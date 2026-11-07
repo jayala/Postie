@@ -52,7 +52,12 @@ struct GmailSendingTests {
         #expect(head.contains("Cc: c@example.com"))
         #expect(head.contains("Subject: Hello"))
         #expect(head.contains("Message-ID: <id@postie>"))
-        #expect(head.contains("Date: Thu, 01 Jan 1970 00:00:00 +0000") || head.contains("Date: Thu, 01 Jan 1970"))
+        // The header is in the Mac's time zone, so compare the moment it names rather than its text.
+        let dateLine = try #require(head.components(separatedBy: "\r\n").first { $0.hasPrefix("Date: ") })
+        let parser = DateFormatter()
+        parser.locale = Locale(identifier: "en_US_POSIX")
+        parser.dateFormat = "EEE, dd MMM yyyy HH:mm:ss Z"
+        #expect(parser.date(from: String(dateLine.dropFirst("Date: ".count))) == Date(timeIntervalSince1970: 0))
         #expect(head.contains("Content-Type: text/plain; charset=UTF-8"))
         #expect(head.contains("Content-Transfer-Encoding: base64"))
         #expect(!head.contains("In-Reply-To"))
