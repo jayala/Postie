@@ -274,6 +274,80 @@ struct EmailHTMLTests {
         #expect(size["height"] as? Double == 90)
     }
 
+    private var pageColors: String {
+        """
+        return {
+            scheme: getComputedStyle(document.documentElement).colorScheme,
+            text: getComputedStyle(document.getElementById('text')).color
+        };
+        """
+    }
+
+    @Test("In dark mode, mail with colors of its own is shown on a light page, so its text can be read", arguments: [
+        // A card that paints its own white, and leaves its text to the default color.
+        "<div style=\"background: #f7f8fa\"><div style=\"background: #fff\"><p id=\"text\">Hola</p><p style=\"color: #333\">Gracias</p></div></div>",
+        "<table bgcolor=\"#ffffff\"><tr><td id=\"text\">Hola</td></tr></table>",
+        "<style>body { background: #fff; }</style><p id=\"text\">Hola</p>",
+        "<body style=\"background: #fff\"><p id=\"text\">Hola</p></body>",
+        "<div style=\"background-image: linear-gradient(#fff, #eee)\"><p id=\"text\">Hola</p></div>",
+        // Dark text of its own, which would land on the dark page.
+        "<p id=\"text\">Hola</p><p style=\"color: #222\">Gracias</p>"
+    ])
+    func darkModeMailWithColors(html: String) async throws {
+        let page = BrowserFixture()
+        defer { page.close() }
+        _ = try await page.load(html, dark: true)
+        let colors = try await page.inspect(pageColors)
+        #expect(colors["scheme"] as? String == "light")
+        #expect(colors["text"] as? String == "rgb(0, 0, 0)")
+    }
+
+    @Test("In dark mode, mail without colors of its own, or made for dark mode, stays dark", arguments: [
+        "<p id=\"text\">Hola</p>",
+        "<p id=\"text\">Hola <a href=\"https://example.com\">enlace</a></p>",
+        "<p id=\"text\">Hola</p><p style=\"color: #888\">A signature in mid gray</p>",
+        // Its own dark design, with its own light text.
+        "<div style=\"background: #111; color: #eee\"><p id=\"text\">Hola</p></div>",
+        // Colors that are never shown.
+        "<p id=\"text\">Hola</p><div style=\"display: none; color: #000; background: #fff\">Preheader</div>",
+        // It says it supports dark mode, or brings its own rules for it.
+        "<meta name=\"color-scheme\" content=\"light dark\"><div style=\"background: #fff\"><p id=\"text\">Hola</p></div>",
+        "<meta name=\"supported-color-schemes\" content=\"light dark\"><div style=\"background: #fff\"><p id=\"text\">Hola</p></div>",
+        "<style>.card { background: #fff; } @media (prefers-color-scheme: dark) { .card { background: #111; } }</style>"
+            + "<div class=\"card\"><p id=\"text\">Hola</p></div>"
+    ])
+    func darkModeMailWithoutColors(html: String) async throws {
+        let page = BrowserFixture()
+        defer { page.close() }
+        _ = try await page.load(html, dark: true)
+        #expect(try await page.inspect(pageColors)["scheme"] as? String == "dark")
+    }
+
+    @Test("In dark mode, colored quoted history only makes the page light while it is shown")
+    func darkModeQuotedHistory() async throws {
+        let page = BrowserFixture()
+        defer { page.close() }
+        _ = try await page.load("<div id=\"text\">Thanks!</div><div class=\"gmail_quote\"><div style=\"background: #fff\">Earlier text</div></div>", dark: true)
+        let toggle = "document.querySelector('[data-quote-toggle]').click(); return {};"
+        #expect(try await page.inspect(pageColors)["scheme"] as? String == "dark")
+        _ = try await page.inspect(toggle)
+        let expanded = try await page.inspect(pageColors)
+        #expect(expanded["scheme"] as? String == "light")
+        #expect(expanded["text"] as? String == "rgb(0, 0, 0)")
+        _ = try await page.inspect(toggle)
+        #expect(try await page.inspect(pageColors)["scheme"] as? String == "dark")
+    }
+
+    @Test("In light mode a page stays as it is, whatever colors the mail has")
+    func lightModeLeavesColorsAlone() async throws {
+        let page = BrowserFixture()
+        defer { page.close() }
+        _ = try await page.load("<div style=\"background: #111; color: #eee\"><p id=\"text\">Hola</p></div>")
+        let result = try await page.inspect("return { inline: document.documentElement.style.colorScheme, scheme: getComputedStyle(document.documentElement).colorScheme };")
+        #expect(result["inline"] as? String == "")
+        #expect(result["scheme"] as? String == "light")
+    }
+
     @Test("A column beside a cell that claims all the width keeps its words whole", arguments: [
         labelledTable(value: "<strong>Alex Doe</strong>"),
         labelledTable(value: "<a href=\"\(longAddress)\">\(longAddress)</a>"),
@@ -524,8 +598,9 @@ private final class BrowserFixture {
         coordinator.openLink = { [weak self] in self?.openedLinks.append($0) }
     }
 
-    func load(_ html: String) async throws -> CGFloat {
-        coordinator.load(html: html, dark: false, in: view)
+    func load(_ html: String, dark: Bool = false) async throws -> CGFloat {
+        if dark { view.appearance = NSAppearance(named: .darkAqua) }
+        coordinator.load(html: html, dark: dark, in: view)
         var iterator = heights.makeAsyncIterator()
         guard let height = try await iterator.next() else { throw CancellationError() }
         // Wait for resources and page load, not an arbitrary sleep.

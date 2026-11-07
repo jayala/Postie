@@ -287,6 +287,32 @@ enum EmailHTMLPolicy {
                 window.webkit.messageHandlers.emailHeight.postMessage(height);
             }
         };
+        // Most mail is written for a white page. On a dark one, its own light backgrounds would get our white
+        // text and its own dark text would land on our dark background. So mail with colors of its own is
+        // shown on a light page, unless it says it supports dark mode. Mail without any stays dark.
+        const brightness = (color) => {
+            const [red, green, blue, alpha = 1] = (color.match(/[0-9.]+/g) ?? []).map(Number);
+            return alpha === 0 ? NaN : (0.299 * red + 0.587 * green + 0.114 * blue) / 255;
+        };
+        const assumesLightPage = (element) => {
+            // What isn't shown doesn't count, such as collapsed quoted history or a hidden preheader.
+            if (element.getClientRects().length === 0) { return false; }
+            const style = getComputedStyle(element);
+            return style.backgroundImage !== 'none' || brightness(style.backgroundColor) > 0.5
+                || (brightness(style.color) < 0.5 && [...element.childNodes].some(
+                    (node) => node.nodeType === Node.TEXT_NODE && node.data.trim()
+                ));
+        };
+        const supportsDark = document.querySelector(
+            'meta[name="color-scheme" i][content*="dark" i], meta[name="supported-color-schemes" i][content*="dark" i]'
+        );
+        const fitColors = () => {
+            root.style.removeProperty('color-scheme');
+            if (!supportsDark && getComputedStyle(root).colorScheme.includes('dark')
+                && [document.body, ...document.body.querySelectorAll('*')].some(assumesLightPage)) {
+                root.style.setProperty('color-scheme', 'light', 'important');
+            }
+        };
         // Quoted history is collapsed behind a "..." button, as other mail clients do. Only the first,
         // outermost quote is handled (nested ones stay inside it), and only when the message has
         // content of its own before it, so a message that is only a quote is shown as is.
@@ -317,9 +343,11 @@ enum EmailHTMLPolicy {
                         : \(EmailHTMLPolicy.javaScriptString(String(localized: "Show quoted text", comment: "Tooltip of the button that expands the quoted history of an email")));
                     toggle.setAttribute('aria-label', toggle.title);
                     quote.style.display = expanded ? previousDisplay : 'none';
+                    fitColors();
                 });
             }
         }
+        fitColors();
         new ResizeObserver(report).observe(document.body);
         window.addEventListener('resize', report);
         window.addEventListener('load', report);

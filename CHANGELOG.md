@@ -55,6 +55,9 @@ All notable changes to Postie are documented here. The format is based on
 - Labels in table-based emails, such as delivery notices, no longer collapse into
   a narrow column with one letter per line, whether you are reading the email or
   quoting it in a reply or forward.
+- In dark mode, text no longer disappears in emails with colors of their own, such
+  as a white card with default text. They are shown on a light page, as designed.
+  Emails with no colors of their own, or that support dark mode, stay dark.
 - Thin rule and spacer images in emails keep the size the email gives them instead
   of growing into large squares.
 - Images embedded in an email, such as many signatures and logos, are now shown
