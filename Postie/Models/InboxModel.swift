@@ -183,6 +183,12 @@ final class InboxModel {
         changeLabel(.setStarred(item.key, starred), named: starred ? String(localized: "Flag") : String(localized: "Unflag"))
     }
 
+    func toggleImportant(_ item: MergedConversation) {
+        let important = !item.conversation.isImportant
+        changeLabel(.setImportant(item.key, important),
+                    named: important ? String(localized: "Mark as Important") : String(localized: "Mark as Not Important"))
+    }
+
     private func changeLabel(_ change: MailChange, named name: String) {
         Task {
             if await apply(change) { recordUndo(change.opposite, named: name) }
@@ -247,6 +253,7 @@ final class InboxModel {
         case restore([RemovedConversation], archived: Bool)
         case setUnread(ConversationKey, Bool)
         case setStarred(ConversationKey, Bool)
+        case setImportant(ConversationKey, Bool)
 
         var opposite: MailChange {
             switch self {
@@ -254,6 +261,7 @@ final class InboxModel {
             case .restore(let items, let archived): .remove(items, archiving: archived)
             case .setUnread(let key, let unread): .setUnread(key, !unread)
             case .setStarred(let key, let starred): .setStarred(key, !starred)
+            case .setImportant(let key, let important): .setImportant(key, !important)
             }
         }
     }
@@ -310,6 +318,9 @@ final class InboxModel {
         case .setStarred(let key, let starred):
             keys = [key]
             succeeded = await hub.setStarred(key, starred, refreshing: false) ? [key] : []
+        case .setImportant(let key, let important):
+            keys = [key]
+            succeeded = await hub.setImportant(key, important, refreshing: false) ? [key] : []
         }
         // Not awaited: the next undo should not have to wait for it.
         Task { await hub.refresh(after: keys, succeeded: succeeded) }
@@ -434,8 +445,10 @@ final class InboxModel {
                 : (openConversation.map { $0.messages.allSatisfy(\.bodyLoaded) } == true ? { [self] in respond(.forward) } : nil),
             toggleRead: selected.map { item in { [self] in toggleRead(item) } },
             toggleFlag: selected.map { item in { [self] in toggleStar(item) } },
+            toggleImportant: selected.map { item in { [self] in toggleImportant(item) } },
             selectionIsUnread: selected?.conversation.isUnread ?? false,
-            selectionIsFlagged: selected?.conversation.isStarred ?? false
+            selectionIsFlagged: selected?.conversation.isStarred ?? false,
+            selectionIsImportant: selected?.conversation.isImportant ?? false
         )
     }
 }

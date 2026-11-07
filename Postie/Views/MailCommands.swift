@@ -15,8 +15,10 @@ struct MailActions {
     var forward: (() -> Void)?
     var toggleRead: (() -> Void)?
     var toggleFlag: (() -> Void)?
+    var toggleImportant: (() -> Void)?
     var selectionIsUnread = false
     var selectionIsFlagged = false
+    var selectionIsImportant = false
 }
 
 extension FocusedValues {
@@ -91,6 +93,9 @@ struct MailCommands: Commands {
             Button(actions?.selectionIsFlagged == true ? String(localized: "Unflag") : String(localized: "Flag")) { actions?.toggleFlag?() }
                 .keyboardShortcut("l", modifiers: [.command, .shift])
                 .disabled(actions?.toggleFlag == nil)
+            Button(actions?.selectionIsImportant == true ? String(localized: "Mark as Not Important") : String(localized: "Mark as Important")) { actions?.toggleImportant?() }
+                .keyboardShortcut("i", modifiers: [.command, .shift])
+                .disabled(actions?.toggleImportant == nil)
             Divider()
             Button("Archive") { actions?.archive?() }
                 .keyboardShortcut("a", modifiers: [.command, .control])

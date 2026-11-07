@@ -165,4 +165,25 @@ struct GmailMutationTests {
         #expect(store.conversations.first?.isUnread == false)
         #expect(store.selectedConversation?.isUnread == false)
     }
+
+    @Test("Importance updates the list and open conversation, and stays as it was when Gmail refuses")
+    @MainActor
+    func importantUpdatesLocally() async throws {
+        let a = try GmailFixtures.conversation("a1", includeBody: false)
+        let api = MutatingStubAPI([.success(GmailPage(conversations: [a], nextPageToken: nil))])
+        let store = GmailReaderStore(api: api)
+        await store.refresh()
+        await store.select("a1")
+        #expect(store.conversations.first?.isImportant == false)
+
+        await store.setImportant("a1", true, refreshing: false)
+        #expect(api.calls == ["add IMPORTANT a1"])
+        #expect(store.conversations.first?.isImportant == true)
+        #expect(store.selectedConversation?.isImportant == true)
+
+        api.failure = GmailError.http(403)
+        #expect(await store.setImportant("a1", false, refreshing: false) == false)
+        #expect(store.conversations.first?.isImportant == true)
+        #expect(store.mailboxError != nil)
+    }
 }

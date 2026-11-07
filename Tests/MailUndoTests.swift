@@ -131,6 +131,28 @@ struct MailUndoTests {
         ])
     }
 
+    @Test("Importance changes can be undone and redone, and name what they did")
+    func important() async throws {
+        let api = HubAPI([MailHubTests.conversation("a1", at: 300)])
+        let (_, hub, model, manager) = await makeInbox(api)
+
+        model.toggleImportant(try #require(hub.conversations.first))
+        try await until { manager.undoActionName == "Mark as Important" }
+        try await until { hub.conversations.first?.conversation.isImportant == true }
+        model.toggleImportant(try #require(hub.conversations.first))
+        try await until { manager.undoActionName == "Mark as Not Important" }
+        try await until { hub.conversations.first?.conversation.isImportant == false }
+
+        manager.undo()
+        try await until { hub.conversations.first?.conversation.isImportant == true }
+        #expect(manager.redoActionName == "Mark as Not Important")
+        manager.redo()
+        try await until { hub.conversations.first?.conversation.isImportant == false }
+        #expect(await api.labelChanges == [
+            "add IMPORTANT a1", "remove IMPORTANT a1", "add IMPORTANT a1", "remove IMPORTANT a1"
+        ])
+    }
+
     @Test("Opening a conversation marks it read without adding a step to undo")
     func automaticReadIsNotAStep() async throws {
         let api = HubAPI([MailHubTests.conversation("a1", at: 300, unread: true)])

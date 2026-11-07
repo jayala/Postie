@@ -35,6 +35,9 @@ All notable changes to Postie are documented here. The format is based on
 - A filter button above the conversation list, to show only the folder's unread mail,
   including mail further back than the list has loaded. A conversation you read stays
   until you move on. Choosing another folder or account turns the filter off.
+- Mark a conversation as important or not important from the Message menu (⇧⌘I), its
+  context menu, or the button next to its star. This can be undone. Important
+  conversations show a marker in the list.
 
 ### Changed
 

@@ -28,8 +28,9 @@ struct ConversationDetailView: View {
                 }
                 GmailConversationView(
                     conversation: conversation, mailbox: hub.mailbox, labelNames: hub.labelNames(for: key.accountID),
-                    canToggleStar: hub.canModifyLabels(key),
+                    canModifyLabels: hub.canModifyLabels(key),
                     toggleStar: { model.toggleStar(MergedConversation(key: key, conversation: conversation)) },
+                    toggleImportant: { model.toggleImportant(MergedConversation(key: key, conversation: conversation)) },
                     openDraft: hub.canEditDraft(key) ? { model.editDraft(key) } : nil
                 )
                 .id(key)
@@ -128,14 +129,15 @@ private struct GmailConversationView: View {
     let conversation: GmailConversation
     let mailbox: Mailbox
     let labelNames: [String: String]
-    let canToggleStar: Bool
+    let canModifyLabels: Bool
     let toggleStar: () -> Void
+    let toggleImportant: () -> Void
     let openDraft: (() -> Void)?
 
     var body: some View {
         ThreadDetailView(
             thread: conversation.presentation(includingBodies: true, mailbox: mailbox, labelNames: labelNames),
-            canToggleStar: canToggleStar, toggleStar: toggleStar, openDraft: openDraft
+            canModifyLabels: canModifyLabels, toggleStar: toggleStar, toggleImportant: toggleImportant, openDraft: openDraft
         )
     }
 }

@@ -943,6 +943,14 @@ final class MailHub {
         return true
     }
 
+    @discardableResult
+    func setImportant(_ key: ConversationKey, _ important: Bool, refreshing: Bool = true) async -> Bool {
+        guard let reader = session(for: key.accountID)?.reader,
+              await reader.setImportant(key.threadID, important, refreshing: refreshing) else { return false }
+        updateSearchResult(key) { $0.setting("IMPORTANT", to: important) }
+        return true
+    }
+
     /// Queues the message to be sent from the draft's account and returns at once; the outbox delivers it, and keeps
     /// trying when Gmail cannot be reached. A reply always goes out from the account that received the mail.
     func send(_ draft: ComposeDraft) async throws {

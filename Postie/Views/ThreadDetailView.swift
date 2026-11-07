@@ -2,17 +2,20 @@ import SwiftUI
 
 struct ThreadDetailView: View {
     let thread: MailThread
-    var canToggleStar = true
+    var canModifyLabels = true
     let toggleStar: () -> Void
+    let toggleImportant: () -> Void
     var openDraft: (() -> Void)?
     @State private var scrollPosition: ScrollPosition
     @State private var viewportHeight: CGFloat = 0
     @State private var followsLatestLayout = true
 
-    init(thread: MailThread, canToggleStar: Bool = true, toggleStar: @escaping () -> Void, openDraft: (() -> Void)? = nil) {
+    init(thread: MailThread, canModifyLabels: Bool = true, toggleStar: @escaping () -> Void,
+         toggleImportant: @escaping () -> Void, openDraft: (() -> Void)? = nil) {
         self.thread = thread
-        self.canToggleStar = canToggleStar
+        self.canModifyLabels = canModifyLabels
         self.toggleStar = toggleStar
+        self.toggleImportant = toggleImportant
         self.openDraft = openDraft
         _scrollPosition = State(initialValue: Self.openingScrollPosition(for: thread))
     }
@@ -24,6 +27,10 @@ struct ThreadDetailView: View {
             return ScrollPosition(idType: String.self, edge: .top)
         }
         return ScrollPosition(id: latest.id, anchor: .top)
+    }
+
+    private var importantActionTitle: String {
+        thread.isImportant ? String(localized: "Mark as Not Important") : String(localized: "Mark as Important")
     }
 
     var body: some View {
@@ -42,13 +49,21 @@ struct ThreadDetailView: View {
                         ForEach(thread.labels, id: \.self) { LabelChip(name: $0) }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    Button(action: toggleImportant) {
+                        Image(systemName: thread.isImportant ? "exclamationmark.circle.fill" : "exclamationmark.circle")
+                    }
+                    .buttonStyle(.borderless)
+                    .foregroundStyle(.secondary)
+                    .disabled(!canModifyLabels)
+                    .help(canModifyLabels ? importantActionTitle : String(localized: "Importance cannot be changed yet."))
+                    .accessibilityLabel(importantActionTitle)
                     Button(action: toggleStar) {
                         Image(systemName: thread.isStarred ? "star.fill" : "star")
                     }
                     .buttonStyle(.borderless)
                     .foregroundStyle(.secondary)
-                    .disabled(!canToggleStar)
-                    .help(canToggleStar
+                    .disabled(!canModifyLabels)
+                    .help(canModifyLabels
                           ? (thread.isStarred ? String(localized: "Remove star") : String(localized: "Star conversation"))
                           : String(localized: "Stars cannot be changed yet."))
                     .accessibilityLabel(thread.isStarred ? String(localized: "Remove star") : String(localized: "Star conversation"))
@@ -278,7 +293,7 @@ private struct MessageView: View {
 #if DEBUG
 #Preview("Conversation") {
     let thread = SampleMail.threads()[0]
-    ThreadDetailView(thread: thread, toggleStar: {})
+    ThreadDetailView(thread: thread, toggleStar: {}, toggleImportant: {})
         .id(thread.id)
         .frame(width: 680, height: 800)
 }
@@ -290,7 +305,7 @@ private struct MessageView: View {
         body: "Thanks for subscribing. Reply to this message to reach support."
     )
     ThreadDetailView(thread: MailThread(id: "reply-to", subject: "Welcome", messages: [message], mailbox: .inbox),
-                     canToggleStar: false, toggleStar: {})
+                     canModifyLabels: false, toggleStar: {}, toggleImportant: {})
         .frame(width: 680, height: 260)
 }
 
@@ -302,7 +317,7 @@ private struct MessageView: View {
     )
     ThreadDetailView(thread: MailThread(id: "labels", subject: "A subject long enough that the labels have to move on to the next line",
                                         messages: [message], mailbox: .inbox, labels: ["Inbox", "Follow up", "Work/Clients"]),
-                     canToggleStar: false, toggleStar: {})
+                     canModifyLabels: false, toggleStar: {}, toggleImportant: {})
         .frame(width: 520, height: 260)
 }
 
@@ -325,14 +340,14 @@ private func longConversationPreview(html: Bool = false) -> MailThread {
 
 #Preview("Latest message · Long conversation") {
     let thread = longConversationPreview()
-    ThreadDetailView(thread: thread, toggleStar: {})
+    ThreadDetailView(thread: thread, toggleStar: {}, toggleImportant: {})
         .id(thread.id)
         .frame(width: 620, height: 640)
 }
 
 #Preview("Latest message · HTML compact dark") {
     let thread = longConversationPreview(html: true)
-    ThreadDetailView(thread: thread, toggleStar: {})
+    ThreadDetailView(thread: thread, toggleStar: {}, toggleImportant: {})
         .id(thread.id)
         .frame(width: 420, height: 640)
         .preferredColorScheme(.dark)

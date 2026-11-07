@@ -578,10 +578,15 @@ final class GmailReaderStore {
 
     var canModifyLabels: Bool { mutator != nil }
 
-    /// Both return false (with `mailboxError` set) when Gmail rejects the change.
+    /// These return false (with `mailboxError` set) when Gmail rejects the change.
     @discardableResult
     func setStarred(_ id: String, _ starred: Bool, refreshing: Bool = true) async -> Bool {
         await setLabel("STARRED", starred, id, refreshing: refreshing)
+    }
+
+    @discardableResult
+    func setImportant(_ id: String, _ important: Bool, refreshing: Bool = true) async -> Bool {
+        await setLabel("IMPORTANT", important, id, refreshing: refreshing)
     }
 
     @discardableResult

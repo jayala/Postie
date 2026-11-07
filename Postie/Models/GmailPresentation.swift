@@ -16,7 +16,8 @@ extension GmailConversation {
                                 : $0.snippet,
                             htmlBody: includingBodies ? $0.htmlBody : nil, attachments: $0.attachments)
             },
-            mailbox: mailbox, isUnread: isUnread, isStarred: isStarred, labels: visibleLabels(named: labelNames)
+            mailbox: mailbox, isUnread: isUnread, isStarred: isStarred, isImportant: isImportant,
+            labels: visibleLabels(named: labelNames)
         )
     }
 }

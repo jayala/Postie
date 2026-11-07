@@ -279,6 +279,12 @@
     "I" : {
 
     },
+    "Importance cannot be changed yet." : {
+
+    },
+    "Important" : {
+
+    },
     "Important and unread" : {
 
     },
@@ -326,6 +332,12 @@
     },
     "Manage Accounts…" : {
       "comment" : "In the account switcher, opens Settings"
+    },
+    "Mark as Important" : {
+
+    },
+    "Mark as Not Important" : {
+
     },
     "Mark as Read" : {
 

@@ -216,6 +216,30 @@ struct PriorityInboxTests {
         #expect(sections(hub)[.everythingElse]?.contains("star") == true)
     }
 
+    @Test("Marking as not important keeps a conversation in its section until it is deselected")
+    func markedNotImportant() async {
+        let (_, hub) = await makeHub()
+        let model = InboxModel(hub: hub)
+        model.select(key("vip"))
+        _ = await hub.setImportant(key("vip"), false)
+        #expect(sections(hub)[.importantAndUnread] == ["vip"])
+
+        model.deselect()
+        #expect(sections(hub)[.importantAndUnread] == nil)
+        #expect(sections(hub)[.everythingElse]?.contains("vip") == true)
+    }
+
+    @Test("Marking an unread conversation as important moves it to Important and unread")
+    func markedImportant() async {
+        let (_, hub) = await makeHub()
+        _ = await hub.setUnread(key("other"), true)
+        #expect(sections(hub)[.everythingElse]?.contains("other") == true)
+
+        _ = await hub.setImportant(key("other"), true)
+        #expect(sections(hub)[.importantAndUnread]?.contains("other") == true)
+        #expect(sections(hub)[.everythingElse]?.contains("other") == false)
+    }
+
     // MARK: Older threads
 
     @Test("Turning it on brings in older priority threads the first page left out, and every refresh keeps them")

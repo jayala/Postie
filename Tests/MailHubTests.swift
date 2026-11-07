@@ -207,6 +207,40 @@ struct MailHubTests {
         #expect(actions.archive != nil && actions.trash != nil && actions.forward != nil)
     }
 
+    @Test("The Message menu follows the selected conversation's importance, and only works on one conversation")
+    func importantMenuState() async throws {
+        let important = ConversationKey(accountID: "a", threadID: "a1")
+        let other = ConversationKey(accountID: "a", threadID: "a2")
+        let hub = await makeHub(["a": HubAPI([Self.conversation("a1", at: 100).setting("IMPORTANT", to: true), Self.conversation("a2", at: 200)])])
+        let model = InboxModel(hub: hub)
+        #expect(model.mailActions.toggleImportant == nil)
+
+        model.select(important)
+        #expect(model.mailActions.toggleImportant != nil)
+        #expect(model.mailActions.selectionIsImportant)
+
+        model.select(other)
+        #expect(model.mailActions.toggleImportant != nil)
+        #expect(!model.mailActions.selectionIsImportant)
+
+        model.updateFromList([important, other])
+        #expect(model.mailActions.toggleImportant == nil)
+    }
+
+    @Test("Changing importance updates a search result")
+    func importantInSearch() async throws {
+        let hub = await makeHub(["a": HubAPI([Self.conversation("a1", at: 100)])])
+        let model = InboxModel(hub: hub)
+        model.searchText = "a1"
+        #expect(model.applySearch())
+        await hub.performSearch()
+        let result = try #require(hub.conversations.first)
+        #expect(!result.conversation.isImportant)
+
+        #expect(await hub.setImportant(result.key, true, refreshing: false))
+        #expect(hub.conversations.first?.conversation.isImportant == true)
+    }
+
     @Test("Archiving several conversations removes them all and selects the next one")
     func archivingSeveral() async throws {
         let api = HubAPI([Self.conversation("a1", at: 300), Self.conversation("a2", at: 200), Self.conversation("a3", at: 100)])

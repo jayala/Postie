@@ -49,6 +49,11 @@ struct MailThreadRow: View {
                                 .foregroundStyle(.secondary)
                         }
                         Spacer(minLength: 4)
+                        if thread.isImportant {
+                            Image(systemName: "exclamationmark.circle.fill")
+                                .font(.callout)
+                                .foregroundStyle(.secondary)
+                        }
                         if thread.isStarred {
                             // Stays orange on the selection highlight, like Mimestream.
                             Image(systemName: "star.fill")
@@ -75,6 +80,7 @@ struct MailThreadRow: View {
         var parts: [String] = []
         if thread.isUnread { parts.append(String(localized: "Unread")) }
         if thread.isStarred { parts.append(String(localized: "Starred")) }
+        if thread.isImportant { parts.append(String(localized: "Important")) }
         parts.append(thread.mailbox == .sent ? String(localized: "To \(message.recipient)") : message.senderName)
         parts.append(thread.subject)
         if thread.messages.count > 1 {

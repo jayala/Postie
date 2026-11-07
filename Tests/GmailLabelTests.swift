@@ -24,6 +24,15 @@ struct GmailLabelTests {
         #expect(labels.visibleLabels(named: [:]).isEmpty)
     }
 
+    @Test("Being important reaches the display model, without becoming a label next to the subject")
+    @MainActor
+    func importantPresentation() {
+        let important = conversation(["INBOX", "IMPORTANT"]).presentation(includingBodies: false)
+        #expect(important.isImportant)
+        #expect(important.labels == [Mailbox.inbox.title])
+        #expect(!conversation(["INBOX"]).presentation(includingBodies: false).isImportant)
+    }
+
     @Test("A label whose name is not known yet is left out rather than shown as an ID")
     func unknownLabel() {
         #expect(conversation(["TRASH", "Label_9"]).visibleLabels(named: [:]) == [Mailbox.trash.title])

@@ -31,13 +31,13 @@ subscriptions, AI features, or workspace bloat.
 - Drafts are saved in Gmail, so they show up in every Gmail client: closing a
   message you have written asks whether to keep it, and drafts can be edited
   later from the Drafts folder
-- Archive, trash, star, and read/unread actions
+- Archive, trash, star, mark as important, and read/unread actions
 - Select several conversations with Shift or Command to archive, trash, or forward
   them together. They are forwarded in one message
 - A filter button above the conversation list shows only the folder's unread mail,
   including mail further back than the list has loaded. A conversation you read stays
   until you move on. Choosing another folder or account turns the filter off
-- Undo and Redo (⌘Z and ⇧⌘Z) for archive, trash, flag, and read/unread, several
+- Undo and Redo (⌘Z and ⇧⌘Z) for archive, trash, flag, important, and read/unread, several
   steps back, until Postie quits. Deleting a draft or a queued message can't be undone
 - Search as you type, powered by Gmail, in the account on screen or across all
   accounts from All Inboxes: search the current folder or All Mail, with Gmail operators such as `from:` and `has:attachment`.
@@ -76,8 +76,8 @@ Postie talks to Gmail directly from your Mac. There is no Postie server.
 
 It asks for these Google permissions:
 
-- `gmail.modify` to read mail, to archive, trash, star, and mark mail as read
-  or unread, and to save and delete your drafts
+- `gmail.modify` to read mail, to archive, trash, star, and mark mail as important,
+  read or unread, and to save and delete your drafts
 - `gmail.send` to send mail
 - `gmail.settings.basic` to read your signature, so new messages can include it.
   Postie never changes your Gmail settings

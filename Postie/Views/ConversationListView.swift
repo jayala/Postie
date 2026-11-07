@@ -168,6 +168,8 @@ private struct ConversationContextMenu: View {
                    systemImage: conversation.isUnread ? "envelope.open" : "envelope.badge") { model.toggleRead(item) }
             Button(conversation.isStarred ? String(localized: "Unflag") : String(localized: "Flag"),
                    systemImage: conversation.isStarred ? "star.slash" : "star") { model.toggleStar(item) }
+            Button(conversation.isImportant ? String(localized: "Mark as Not Important") : String(localized: "Mark as Important"),
+                   systemImage: "exclamationmark.circle") { model.toggleImportant(item) }
             Divider()
         }
         if hub.canEditDraft(key) {

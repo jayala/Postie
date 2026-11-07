@@ -521,7 +521,7 @@ private func reservationPreview() -> ThreadDetailView {
             recipient: "alex@example.com", date: Date(timeIntervalSince1970: 1_791_000_000),
             body: "Your reservation is confirmed. Haircut, Friday at 14:30, 24 Market Street.",
             htmlBody: reservationPreviewHTML)], mailbox: .inbox
-    ), canToggleStar: false, toggleStar: {})
+    ), canModifyLabels: false, toggleStar: {}, toggleImportant: {})
 }
 
 #Preview("HTML reservation") {
