@@ -55,6 +55,9 @@ All notable changes to Postie are documented here. The format is based on
 - Labels in table-based emails, such as delivery notices, no longer collapse into
   a narrow column with one letter per line, whether you are reading the email or
   quoting it in a reply or forward.
+- Emails built with a table directly inside another table, such as LATAM boarding
+  passes, keep their footer in the email's column instead of stretching it across
+  the whole window. They are laid out as Gmail shows them.
 - In dark mode, text no longer disappears in emails with colors of their own, such
   as a white card with default text. They are shown on a light page, as designed.
   Emails with no colors of their own, or that support dark mode, stay dark.

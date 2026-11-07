@@ -167,7 +167,7 @@ enum EmailHTMLPolicy {
         pre { white-space: pre-wrap; }
         a { color: LinkText; }
         a[href] { cursor: pointer; }
-        </style></head><body>\(html)</body></html>
+        </style></head><body>\(EmailTableNesting.repaired(html))</body></html>
         """
     }
 

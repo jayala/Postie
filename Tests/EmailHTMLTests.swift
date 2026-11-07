@@ -369,6 +369,45 @@ struct EmailHTMLTests {
         #expect(try #require(result["width"] as? Int) <= 420)
     }
 
+    // Shaped like a LATAM boarding pass: content blocks dropped straight into a table, with rows of the table
+    // between them. Each block ends one of the tables around it, so the footer fell out of the column.
+    @Test("A table placed straight inside another one stays in it, and keeps the footer after it in its column")
+    func tableInsideTable() async throws {
+        let page = BrowserFixture()
+        defer { page.close() }
+        _ = try await page.load("""
+        <center style="width: 100%; background-color: #f3f2f6">
+        <table id="column" width="100%" cellpadding="0" cellspacing="0" style="max-width: 300px; margin: 0 auto"><tr><td>
+        <table width="100%" cellpadding="0" cellspacing="0" style="table-layout: fixed"><tr><td style="background-color: #ffffff">
+        <table id="card" width="100%" cellpadding="0" cellspacing="0" style="table-layout: fixed">
+        <table width="100%"><tr><td id="title">Tudo pronto para embarcar!</td></tr></table>
+        <tr><td>Assento 6D</td></tr>
+        <table width="100%"><tr><td>Lembre-se de levar seu documento</td></tr></table>
+        <tr><td>Nos vemos a bordo!</td></tr>
+        </table>
+        <center><table width="100%"><tr><td id="footer" style="max-width: 300px">Esta informação foi útil?</td></tr></table></center>
+        </td></tr></table>
+        </td></tr></table>
+        </center>
+        """)
+        let result = try await page.inspect("""
+        const column = document.getElementById('column');
+        const footer = document.getElementById('footer');
+        return {
+            titleInCard: document.getElementById('card').contains(document.getElementById('title')),
+            footerInColumn: column.contains(footer),
+            footerWidth: footer.getBoundingClientRect().width,
+            text: document.body.innerText
+        };
+        """)
+        #expect(result["titleInCard"] as? Bool == true)
+        #expect(result["footerInColumn"] as? Bool == true)
+        #expect(try #require(result["footerWidth"] as? Double) <= 300)
+        for text in ["Tudo pronto", "Assento 6D", "Lembre-se", "Nos vemos a bordo!", "Esta informação foi útil?"] {
+            #expect((result["text"] as? String)?.contains(text) == true)
+        }
+    }
+
     @Test("Long unbroken text wraps instead of making the message wider than its view", arguments: [
         "<p>\(longAddress)</p>",
         "<p>\(longRule)</p>",
