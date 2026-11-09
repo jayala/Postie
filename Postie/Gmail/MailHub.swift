@@ -129,21 +129,32 @@ final class AccountSession: Identifiable {
         self.reader = reader
     }
 
-    /// How long to wait between refreshes: two minutes while Postie is the app in front, five otherwise.
+    /// How long to wait between full refreshes: two minutes while Postie is the app in front, five otherwise.
     /// Coming back to the window refreshes at once, so the wait only matters while it is not being looked at.
     static func defaultInterval() -> Duration { NSApplication.shared.isActive ? .seconds(120) : .seconds(300) }
 
-    /// Refreshes now and then, for as long as the session lives.
-    func startSyncing(interval: @escaping @MainActor () -> Duration = AccountSession.defaultInterval) {
+    /// How often to ask Gmail whether anything has changed in between, so new mail shows up within this long.
+    /// The answer is a single number, so asking costs far less than a refresh.
+    static let checkInterval: Duration = .seconds(30)
+
+    /// Refreshes now and then, for as long as the session lives, and sooner when Gmail has something new.
+    func startSyncing(interval: @escaping @MainActor () -> Duration = AccountSession.defaultInterval,
+                      checkInterval: Duration = AccountSession.checkInterval) {
         guard syncTask == nil else { return }
         let reader = reader
         syncTask = Task {
             await reader.refresh()
+            var lastRefresh = ContinuousClock.now
             while !Task.isCancelled {
-                // After a failure (often Gmail rate limiting) give it room instead of asking again at once.
-                let wait = interval()
-                do { try await Task.sleep(for: reader.mailboxError == nil ? wait : wait * 5) } catch { return }
+                if reader.mailboxError != nil {
+                    // After a failure (often Gmail rate limiting) give it room instead of asking again at once.
+                    do { try await Task.sleep(for: interval() * 5) } catch { return }
+                } else {
+                    do { try await Task.sleep(for: checkInterval) } catch { return }
+                    if ContinuousClock.now - lastRefresh < interval(), await !reader.hasChangesSinceLastSync() { continue }
+                }
                 await reader.refresh()
+                lastRefresh = .now
             }
         }
     }
@@ -209,6 +220,10 @@ final class MailHub {
     @ObservationIgnored private var openDrafts: [DraftRef: OpenDraftWindow] = [:]
     /// Accounts that needed signing in again when `reconcile` last ran, to notice the ones that have been reconnected.
     @ObservationIgnored private var disconnectedIDs: Set<String> = []
+    /// Called with the ID of an account and the mail that has just arrived in its Inbox. Notifications come from this.
+    @ObservationIgnored var onNewMail: ((String, [NewMail]) -> Void)?
+    /// What a notification asked to show, until a mail window takes it, which may only be once one has opened.
+    private(set) var revealRequest: RevealRequest?
 
     @ObservationIgnored private var cache: GmailCache?
     /// Mail written but not yet sent, kept on disk until Gmail has it.
@@ -299,8 +314,15 @@ final class MailHub {
         let reader = GmailReaderStore(api: api, mailbox: mailbox.isLabel ? .inbox : mailbox, cache: savedSession)
         reader.loadsPriorityThreads = usesPriorityInbox
         reader.loadsUnreadThreads = showsOnlyUnread
+        reader.onNewMail = { [weak self] mail in self?.received(mail, accountID: id) }
         await reader.restoreCachedMailbox()
         return AccountSession(identity: identity, reader: reader)
+    }
+
+    private func received(_ mail: [NewMail], accountID: String) {
+        // An account removed while its last sync was finishing has nothing more to say.
+        guard sessions.contains(where: { $0.id == accountID }) else { return }
+        onNewMail?(accountID, mail)
     }
 
     /// Deletes the account's downloaded mail, then forgets the account. Does nothing if the mail cannot be removed.
@@ -775,6 +797,23 @@ final class MailHub {
     }
 
     // MARK: One conversation
+
+    /// What a notification asked to show: one of an account's conversations, or just its Inbox.
+    struct RevealRequest: Equatable {
+        let accountID: String
+        let threadID: String?
+    }
+
+    /// Asks the mail window to show a conversation, as clicking a notification does.
+    func reveal(accountID: String, threadID: String?) {
+        revealRequest = RevealRequest(accountID: accountID, threadID: threadID)
+    }
+
+    /// Hands the request to the window that will show it, so it isn't shown again when another window opens.
+    func takeRevealRequest() -> RevealRequest? {
+        defer { revealRequest = nil }
+        return revealRequest
+    }
 
     private func session(for accountID: String) -> AccountSession? {
         sessions.first { $0.id == accountID }

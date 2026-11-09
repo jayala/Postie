@@ -81,6 +81,9 @@
         }
       }
     },
+    "%lld new messages" : {
+      "comment" : "Title of the notification about several messages arriving at once; always more than three"
+    },
     "Account: %@" : {
       "comment" : "Spoken by VoiceOver for the account switcher at the bottom of the sidebar"
     },
@@ -109,6 +112,9 @@
       "comment" : "Mailbox name"
     },
     "All Mail" : {
+
+    },
+    "Allow Postie to open at login in System Settings." : {
 
     },
     "and %lld more" : {
@@ -239,6 +245,9 @@
     },
     "From" : {
       "comment" : "Label of the sender row in the composer"
+    },
+    "From %@" : {
+      "comment" : "Body of the notification about several new messages, listing the senders"
     },
     "General" : {
 
@@ -399,6 +408,12 @@
     "Not sent: %@" : {
 
     },
+    "Notifications for Postie are turned off in System Settings." : {
+
+    },
+    "Notify me about new mail" : {
+
+    },
     "Numbered List" : {
 
     },
@@ -411,11 +426,20 @@
     "Open Draft" : {
 
     },
+    "Open Postie at login" : {
+
+    },
+    "Open System Settings…" : {
+
+    },
     "Opening mailbox…" : {
 
     },
     "Opening saved mail…" : {
 
+    },
+    "others" : {
+      "comment" : "Ends the list of senders in a notification about several new messages"
     },
     "Outbox" : {
       "comment" : "Mailbox name"
@@ -427,6 +451,9 @@
 
     },
     "Postie can no longer sync %@. Sign in again to update it; downloaded messages can still be read." : {
+
+    },
+    "Postie keeps running after you close its window, so it can tell you about new mail." : {
 
     },
     "Postie needs permission to read and organize your Gmail. Sign in again and allow Gmail access." : {
@@ -655,6 +682,9 @@
 
     },
     "Welcome to Postie" : {
+
+    },
+    "When mail arrives in the Inbox while Postie is open, also with its window closed." : {
 
     },
     "You can choose to save this message as a draft, or delete this message immediately. You can't undo this action." : {

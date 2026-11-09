@@ -26,41 +26,49 @@ private enum LaunchMode {
         false
         #endif
     }
+}
 
-    var isUnitTest: Bool {
-        #if DEBUG
-        self == .unitTests
-        #else
-        false
-        #endif
-    }
+/// Postie keeps running when its window closes, like Mail, so it can go on telling you about new mail.
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 }
 
 @main
 struct PostieApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var hub: MailHub
+    @State private var service: MailService
     @State private var updater: UpdaterModel
     private let launchMode = LaunchMode.current
 
     init() {
         let launchMode = LaunchMode.current
         let accounts = launchMode.usesLocalAccount ? AccountStore(vault: MemoryAccountVault()) : AccountStore()
+        let preferences: UserDefaults? = launchMode.usesLocalAccount ? nil : .standard
         // This build is signed with its own team and bundle ID, so it must not update itself from the upstream releases.
         _updater = State(initialValue: UpdaterModel(startingUpdater: false))
-        _hub = State(initialValue: MailHub(
+        let hub = MailHub(
             accounts: accounts, persistsMail: !launchMode.usesLocalAccount, syncsInBackground: !launchMode.usesLocalAccount,
-            preferences: launchMode.usesLocalAccount ? nil : .standard
-        ))
+            preferences: preferences
+        )
+        let service = MailService(hub: hub, preferences: preferences)
+        _hub = State(initialValue: hub)
+        _service = State(initialValue: service)
+        // The unit-test host and the regression harness have no accounts to open, and must not badge the Dock or post notifications.
+        if !launchMode.usesLocalAccount { service.start() }
     }
 
     var body: some Scene {
         Window("Postie", id: "main") {
             root
                 .frame(minWidth: 960, minHeight: 640)
+                .modifier(MainWindowOpener(service: service))
         }
         .commands { MailCommands(updater: updater) }
         .defaultSize(width: 1200, height: 820)
         .windowResizability(.contentMinSize)
+        // Also when Postie last quit with its window closed, or opens at login: a Dock icon alone would look stuck.
+        .defaultLaunchBehavior(.presented)
 
         WindowGroup("New message", id: "composer", for: ComposeDraft.self) { $draft in
             if let draft {
@@ -72,7 +80,7 @@ struct PostieApp: App {
         .restorationBehavior(.disabled)
 
         Settings {
-            SettingsView(hub: hub)
+            SettingsView(hub: hub, service: service)
                 .environment(updater)
         }
     }
@@ -83,10 +91,20 @@ struct PostieApp: App {
         if launchMode == .selectionRegression {
             GmailSelectionRegressionView()
         } else {
-            MailRootView(hub: hub, restoresSession: !launchMode.isUnitTest, updatesDockBadge: !launchMode.isUnitTest)
+            MailRootView(hub: hub)
         }
         #else
         MailRootView(hub: hub)
         #endif
+    }
+}
+
+/// Lets a clicked notification bring the window back after it was closed, which only a view's `openWindow` can do.
+private struct MainWindowOpener: ViewModifier {
+    @Environment(\.openWindow) private var openWindow
+    let service: MailService
+
+    func body(content: Content) -> some View {
+        content.onAppear { service.openMainWindow = { [openWindow] in openWindow(id: "main") } }
     }
 }

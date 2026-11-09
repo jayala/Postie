@@ -96,6 +96,11 @@ struct GmailInboxView: View {
         }
         .onChange(of: model.conversationKeys, initial: true) {
             model.reconcileSelection()
+            model.revealIfListed()
+        }
+        // A notification was clicked, possibly before this window had opened.
+        .onChange(of: hub.revealRequest, initial: true) {
+            if let request = hub.takeRevealRequest() { model.reveal(request) }
         }
         .alert("Could not open the draft", isPresented: Binding(get: { model.draftError != nil }, set: { if !$0 { model.draftError = nil } })) {
             Button("OK") {}

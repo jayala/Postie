@@ -325,6 +325,122 @@ struct GmailSyncTests {
     }
 }
 
+// MARK: New mail
+
+extension GmailSyncTests {
+    @Test("Mail that arrives unread in the Inbox is announced, but not the account's own reply")
+    func announcesNewMail() async throws {
+        let cache = try await session()
+        try await seed(cache, folders: [.inbox: GmailPage(conversations: [], nextPageToken: nil)])
+        let api = SyncTestAPI()
+        // In the fixture, b1 is unread in the Inbox and b2 was sent from the account.
+        api.histories = [.success(arrivalHistory(messages: ["b1", "b2"], thread: "a1", checkpoint: "101"))]
+        api.metadataResults["a1"] = .success(try GmailFixtures.conversation("a1", includeBody: false))
+        let coordinator = GmailSyncCoordinator(api: api, cache: cache)
+        var announced: [[NewMail]] = []
+        coordinator.onNewMail = { announced.append($0) }
+        try await coordinator.synchronize(mailbox: .inbox)
+        #expect(announced.count == 1)
+        let mail = try #require(announced.first?.first)
+        #expect(announced.first?.count == 1)
+        #expect(mail.messageID == "b1" && mail.threadID == "a1")
+        #expect(mail.senderName == "Sophie Chen" && mail.senderEmail == "sophie@example.com")
+        #expect(mail.subject == "Coffee plans")
+        #expect(try await cache.loadMailbox(.inbox)?.conversations.map(\.id) == ["a1"])
+    }
+
+    @Test("Mail already read, out of the Inbox, or in Spam by the time of the sync is not announced",
+          arguments: [Set(["INBOX"]), ["UNREAD"], ["INBOX", "UNREAD", "SPAM"]])
+    func skipsSettledMail(labels: Set<String>) async throws {
+        let cache = try await session()
+        try await seed(cache, folders: [.inbox: GmailPage(conversations: [], nextPageToken: nil)])
+        let api = SyncTestAPI()
+        api.histories = [.success(arrivalHistory(messages: ["b1", "b2"], thread: "a1", checkpoint: "101"))]
+        api.metadataResults["a1"] = .success(try relabeled("a1", labels: labels))
+        let coordinator = GmailSyncCoordinator(api: api, cache: cache)
+        var announced: [[NewMail]] = []
+        coordinator.onNewMail = { announced.append($0) }
+        try await coordinator.synchronize(mailbox: .inbox)
+        #expect(announced.isEmpty)
+        #expect(try await cache.historyID() == "101")
+    }
+
+    @Test("Unread mail moved back to the Inbox did not just arrive")
+    func movedBackIsNotNew() async throws {
+        let cache = try await session()
+        try await seed(cache, folders: [.inbox: GmailPage(conversations: [], nextPageToken: nil)])
+        let api = SyncTestAPI()
+        api.histories = [.success(syncHistory(ids: ["a1"], checkpoint: "101"))]
+        api.metadataResults["a1"] = .success(try relabeled("a1", labels: ["INBOX", "UNREAD"]))
+        let coordinator = GmailSyncCoordinator(api: api, cache: cache)
+        var announced: [[NewMail]] = []
+        coordinator.onNewMail = { announced.append($0) }
+        try await coordinator.synchronize(mailbox: .inbox)
+        #expect(announced.isEmpty)
+    }
+
+    @Test("A first sync, or one starting over after history expired, announces nothing", arguments: [false, true])
+    func freshSnapshotsAreQuiet(expired: Bool) async throws {
+        let cache = try await session()
+        let api = SyncTestAPI()
+        if expired {
+            try await seed(cache, folders: [.inbox: GmailPage(conversations: [], nextPageToken: nil)])
+            api.baseline = "200"
+            api.histories = [.failure(GmailError.http(404)), .success(arrivalHistory(messages: ["b1"], thread: "a1", checkpoint: "205"))]
+        } else {
+            api.histories = [.success(arrivalHistory(messages: ["b1"], thread: "a1", checkpoint: "102"))]
+        }
+        api.pages[.inbox] = [.success(GmailPage(conversations: [], nextPageToken: nil))]
+        api.metadataResults["a1"] = .success(try GmailFixtures.conversation("a1", includeBody: false))
+        let coordinator = GmailSyncCoordinator(api: api, cache: cache)
+        var announced: [[NewMail]] = []
+        coordinator.onNewMail = { announced.append($0) }
+        try await coordinator.synchronize(mailbox: .inbox)
+        #expect(announced.isEmpty)
+        #expect(try await cache.loadMailbox(.inbox)?.conversations.map(\.id) == ["a1"])
+    }
+
+    @Test("Checking for changes only compares Gmail's history ID with the last sync's")
+    func changeCheck() async throws {
+        let cache = try await session()
+        let api = SyncTestAPI()
+        let coordinator = GmailSyncCoordinator(api: api, cache: cache)
+        // Before the first sync there is nothing to compare with, and nothing to ask.
+        #expect(try await coordinator.hasChangesSinceLastSync() == false)
+        #expect(api.profileCalls == 0)
+        try await seed(cache, folders: [.inbox: GmailPage(conversations: [], nextPageToken: nil)], checkpoint: "100")
+        #expect(try await coordinator.hasChangesSinceLastSync() == false)
+        api.baseline = "101"
+        #expect(try await coordinator.hasChangesSinceLastSync() == true)
+        // An ID that went backwards must not set off a sync every time.
+        api.baseline = "99"
+        #expect(try await coordinator.hasChangesSinceLastSync() == false)
+        #expect(api.profileCalls == 3)
+        #expect(api.historyRequests.isEmpty && api.mailboxCalls.isEmpty)
+    }
+
+    @Test("Between full refreshes, an account syncs as soon as Gmail has changed, and not before")
+    func quickCheck() async throws {
+        let cache = try await session()
+        try await seed(cache, folders: [.inbox: GmailPage(conversations: [], nextPageToken: nil)])
+        let api = SyncTestAPI()
+        api.histories = [.success(syncHistory(ids: [], checkpoint: "100"))]
+        let session = AccountSession(identity: GoogleIdentity(id: account.id, email: account.email, name: nil),
+                                     reader: GmailReaderStore(api: api, cache: cache))
+        session.startSyncing(interval: { .seconds(3600) }, checkInterval: .milliseconds(10))
+        defer { session.stop() }
+        while api.profileCalls < 3 { try await Task.sleep(for: .milliseconds(5)) }
+        #expect(api.historyRequests.count == 1)
+        api.baseline = "101"
+        api.histories.append(.success(arrivalHistory(messages: ["b1"], thread: "a1", checkpoint: "101")))
+        api.metadataResults["a1"] = .success(try GmailFixtures.conversation("a1", includeBody: false))
+        while session.reader.conversations.isEmpty { try await Task.sleep(for: .milliseconds(5)) }
+        #expect(session.reader.conversations.map(\.id) == ["a1"])
+        #expect(api.historyRequests.map(\.0) == ["100", "100"])
+        #expect(try await cache.historyID() == "101")
+    }
+}
+
 @MainActor
 private func relabeled(_ id: String, labels: Set<String>) throws -> GmailConversation {
     let original = try GmailFixtures.conversation(id, includeBody: false)
@@ -339,6 +455,15 @@ private nonisolated func syncHistory(ids: [String], checkpoint: String, token: S
         GmailHistoryPage.Record(id: checkpoint, messages: [.init(id: "message-" + $0, threadId: $0)], messagesAdded: nil,
                                 messagesDeleted: nil, labelsAdded: nil, labelsRemoved: nil)
     }, nextPageToken: token, historyId: checkpoint)
+}
+
+/// History in which these messages arrived in one thread.
+private nonisolated func arrivalHistory(messages: [String], thread: String, checkpoint: String) -> GmailHistoryPage {
+    let added = messages.map { GmailHistoryPage.Message(id: $0, threadId: thread) }
+    return GmailHistoryPage(history: [
+        GmailHistoryPage.Record(id: checkpoint, messages: added, messagesAdded: added.map { .init(message: $0) },
+                                messagesDeleted: nil, labelsAdded: nil, labelsRemoved: nil)
+    ], nextPageToken: nil, historyId: checkpoint)
 }
 
 @MainActor

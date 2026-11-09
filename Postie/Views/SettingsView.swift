@@ -2,6 +2,7 @@ import SwiftUI
 
 enum SettingsKey {
     static let showsDockBadge = "showsDockBadge"
+    static let notifiesNewMail = "notifiesNewMail"
     static let usesPriorityInbox = "usesPriorityInbox"
     static let collapsedInboxSections = "collapsedInboxSections"
     static let collapsedLabelGroups = "collapsedLabelGroups"
@@ -11,6 +12,7 @@ enum SettingsKey {
 
 struct SettingsView: View {
     let hub: MailHub
+    let service: MailService
 
     var body: some View {
         TabView {
@@ -18,11 +20,11 @@ struct SettingsView: View {
                 AccountSettings(hub: hub)
             }
             Tab("General", systemImage: "gearshape") {
-                GeneralSettings(hub: hub)
+                GeneralSettings(hub: hub, service: service)
             }
         }
         .scenePadding()
-        .frame(width: 480, height: 340)
+        .frame(width: 480, height: 440)
     }
 }
 
@@ -145,19 +147,63 @@ private struct AccountRow: View {
 
 private struct GeneralSettings: View {
     @Bindable var hub: MailHub
-    @AppStorage(SettingsKey.showsDockBadge) private var showsDockBadge = true
+    @Bindable var service: MailService
     @Environment(UpdaterModel.self) private var updater
+
+    private var notifier: MailNotifier { service.notifier }
+    private var loginItem: LoginItem { service.loginItem }
 
     var body: some View {
         @Bindable var updater = updater
+        @Bindable var notifier = notifier
         Form {
             Toggle(isOn: $hub.usesPriorityInbox) {
                 Text("Priority Inbox")
                 Text("Group the Inbox into Important and unread, Starred, and Everything else.")
             }
-            Toggle("Show unread count on the Dock icon", isOn: $showsDockBadge)
+            Section {
+                Toggle(isOn: $notifier.isEnabled) {
+                    Text("Notify me about new mail")
+                    Text("When mail arrives in the Inbox while Postie is open, also with its window closed.")
+                }
+                if notifier.isEnabled, notifier.isDenied {
+                    HStack {
+                        Text("Notifications for Postie are turned off in System Settings.")
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Button("Open System Settings…", action: openNotificationSettings)
+                    }
+                }
+                Toggle("Show unread count on the Dock icon", isOn: $service.showsDockBadge)
+                Toggle(isOn: Binding(get: { loginItem.isEnabled }, set: { loginItem.setEnabled($0) })) {
+                    Text("Open Postie at login")
+                    Text("Postie keeps running after you close its window, so it can tell you about new mail.")
+                }
+                if loginItem.needsApproval {
+                    HStack {
+                        Text("Allow Postie to open at login in System Settings.")
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Button("Open System Settings…", action: loginItem.openSystemSettings)
+                    }
+                } else if let error = loginItem.error {
+                    Text(error)
+                        .foregroundStyle(.secondary)
+                }
+            }
             Toggle("Check for updates automatically", isOn: $updater.checksAutomatically)
         }
         .formStyle(.grouped)
+        // Either can be changed in System Settings while Postie runs.
+        .task {
+            loginItem.refresh()
+            await notifier.refreshAuthorization()
+        }
+    }
+
+    private func openNotificationSettings() {
+        let id = Bundle.main.bundleIdentifier ?? ""
+        guard let url = URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension?id=\(id)") else { return }
+        NSWorkspace.shared.open(url)
     }
 }

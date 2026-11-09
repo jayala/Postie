@@ -29,6 +29,8 @@ final class InboxModel {
 
     @ObservationIgnored private var selectionBeforeSearch: Set<ConversationKey> = []
     @ObservationIgnored private var autoReadID: ConversationKey?
+    /// The conversation a notification opened, until its row is in the list.
+    @ObservationIgnored private var pendingReveal: ConversationKey?
 
     init(hub: MailHub) {
         self.hub = hub
@@ -86,6 +88,39 @@ final class InboxModel {
         selection.reset()
         searchText = ""
         selectionBeforeSearch = []
+        pendingReveal = nil
+    }
+
+    /// Shows what a notification pointed at: the Inbox it arrived in, unless that is already on screen, with its
+    /// conversation selected. A notification about several messages only shows the Inbox.
+    func reveal(_ request: MailHub.RevealRequest) {
+        let showsItsInbox = hub.mailbox == .inbox
+            && (hub.isShowingAllInboxes || hub.accounts.selectedAccount?.id == request.accountID)
+        if showsItsInbox {
+            if !searchText.isEmpty {
+                searchText = ""
+                _ = applySearch()
+            }
+        } else {
+            startNewList()
+            hub.selectAccount(request.accountID)
+            hub.show(.folder(.inbox))
+        }
+        pendingReveal = request.threadID.map { ConversationKey(accountID: request.accountID, threadID: $0) }
+        revealIfListed()
+    }
+
+    /// Selects the conversation a notification opened, once the list has caught up with it.
+    func revealIfListed() {
+        guard let key = pendingReveal, let item = hub.list[key] else { return }
+        if !conversationKeys.contains(key) {
+            // Loaded but out of sight in a collapsed Priority Inbox section, which has to open for it.
+            let section = InboxSection(item.conversation)
+            guard hub.collapsedSections.contains(section) else { return }
+            hub.toggleSection(section)
+        }
+        pendingReveal = nil
+        selection.select(key)
     }
 
     /// The fully loaded conversation that Reply and Forward act on. Its account is the one that sends the response.

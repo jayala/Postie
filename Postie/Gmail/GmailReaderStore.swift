@@ -40,6 +40,11 @@ final class GmailReaderStore {
     }
     /// Where the folder's unread threads continue, while `loadsUnreadThreads` is on.
     private(set) var nextUnreadPageToken: String?
+    /// Called with mail that has just arrived in the Inbox, whichever folder is open, once a sync has saved it.
+    @ObservationIgnored var onNewMail: (([NewMail]) -> Void)? {
+        get { synchronizer?.onNewMail }
+        set { synchronizer?.onNewMail = newValue }
+    }
 
     @ObservationIgnored private let api: any GmailReading
     // What the account's API can do, worked out once instead of casting on every call.
@@ -188,6 +193,17 @@ final class GmailReaderStore {
         await labels
         // The sync may have just brought in what changes them.
         await refreshLabelCounts(for: startedAccount)
+    }
+
+    /// Whether Gmail has anything the last sync didn't see, found out with one small request. When it can't
+    /// tell, such as without a local cache or while offline, it answers no and leaves it to the next full refresh.
+    func hasChangesSinceLastSync() async -> Bool {
+        guard let synchronizer else { return false }
+        do { return try await synchronizer.hasChangesSinceLastSync() }
+        catch {
+            if !(error is CancellationError) { Log.sync.debug("Could not check for changes: \(error.localizedDescription, privacy: .public)") }
+            return false
+        }
     }
 
     /// Setting an unchanged value would still redraw whatever shows it, on every refresh.

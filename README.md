@@ -47,7 +47,12 @@ subscriptions, AI features, or workspace bloat.
 - Postie remembers how wide you make the sidebar and the conversation list.
   Double-click a divider to put that column back to its default width
 - Local SQLite cache for previously loaded mail
-- Incremental Gmail synchronization while the app is running
+- Incremental Gmail synchronization while the app is running. Postie asks Gmail
+  whether anything has changed every 30 seconds and syncs when it has
+- Notifications for new mail in the Inbox. Click one to open the conversation.
+  More than three messages at once share one notification
+- Postie keeps running after you close its window, like Mail, so notifications and
+  the Dock badge keep working. It can open at login, in Settings > General
 - Native light and dark mode
 - Dock badge for unread Inbox mail
 
@@ -68,7 +73,7 @@ Planned:
 Not planned:
 
 - Generic IMAP / Exchange support
-- Push notifications while Postie is closed
+- Push notifications while Postie isn't running
 
 ## Privacy and permissions
 

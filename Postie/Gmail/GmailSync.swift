@@ -40,6 +40,11 @@ nonisolated struct GmailHistoryPage: Decodable, Sendable {
         })
     }
 
+    /// Messages that arrived in the mailbox in this page: received, sent or saved as a draft.
+    var addedMessageIDs: Set<String> {
+        Set((history ?? []).flatMap { ($0.messagesAdded ?? []).map(\.message.id) })
+    }
+
     static func validID(_ id: String) -> Bool {
         !id.isEmpty && id.contains { $0 != "0" } && id.allSatisfy { $0.isASCII && $0.isNumber }
     }
@@ -58,7 +63,33 @@ nonisolated enum GmailSyncError: Error { case historyExpired }
 nonisolated struct HistoryChanges: Sendable {
     let ids: Set<String>
     let deletedOnly: Set<String>
+    let added: Set<String>
     let checkpoint: String
+}
+
+/// A message that has just arrived in the Inbox, still unread, and not one the account sent itself.
+nonisolated struct NewMail: Equatable, Sendable {
+    let threadID: String
+    let messageID: String
+    let senderName: String
+    let senderEmail: String
+    let subject: String
+    let snippet: String
+    let date: Date
+
+    /// The messages among `added` that are new mail, oldest first. Whatever was read, archived or
+    /// sent by the time the sync looked doesn't count.
+    static func arrivals(_ added: Set<String>, in conversations: [GmailConversation]) -> [NewMail] {
+        conversations.flatMap { conversation in
+            conversation.messages.filter { message in
+                added.contains(message.id) && message.labelIDs.isSuperset(of: ["INBOX", "UNREAD"])
+                    && message.labelIDs.isDisjoint(with: ["SENT", "DRAFT", "SPAM", "TRASH"])
+            }.map { message in
+                NewMail(threadID: conversation.id, messageID: message.id, senderName: message.senderName,
+                        senderEmail: message.senderEmail, subject: conversation.subject, snippet: message.snippet, date: message.date)
+            }
+        }.sorted { ($0.date, $0.messageID) < ($1.date, $1.messageID) }
+    }
 }
 
 nonisolated struct GmailSyncBatch: Sendable {
@@ -81,6 +112,9 @@ final class GmailSyncCoordinator {
     private let cache: GmailCacheSession
     private var running: Task<Void, Error>?
     private var operation = Generation()
+    /// Called with mail that arrived in the Inbox since the last sync, once it has been saved. A first sync,
+    /// or one that has to start over, announces nothing: everything would look new.
+    var onNewMail: (([NewMail]) -> Void)?
 
     init(api: any GmailSyncReading, cache: GmailCacheSession) {
         self.api = api
@@ -91,6 +125,20 @@ final class GmailSyncCoordinator {
         running?.cancel()
         running = nil
         operation.advance()
+    }
+
+    /// Whether Gmail has changed since the last sync. This only asks for the mailbox's history ID, which costs
+    /// far less than a sync. Before the first sync there is nothing to compare with, so it answers no.
+    func hasChangesSinceLastSync() async throws -> Bool {
+        guard let checkpoint = try await cache.historyID() else { return false }
+        let current = try await api.currentHistoryID()
+        return GmailHistoryPage.isAtLeast(current, checkpoint) && !GmailHistoryPage.isAtLeast(checkpoint, current)
+    }
+
+    private func announce(_ mail: [NewMail]) {
+        guard !mail.isEmpty, !Task.isCancelled else { return }
+        Log.sync.info("\(mail.count, privacy: .public) new messages in the Inbox")
+        onNewMail?(mail)
     }
 
     func synchronize(mailbox: Mailbox) async throws {
@@ -143,6 +191,7 @@ final class GmailSyncCoordinator {
                 batch.historyID = changes.checkpoint
                 try Task.checkCancellation()
                 try await cache.applySync(batch)
+                await announce(NewMail.arrivals(changes.added, in: fetched.conversations))
             } else {
                 Log.sync.info("First sync, taking a full snapshot")
                 try await rebuild(mailbox: mailbox, expectedHistoryID: nil)
@@ -190,6 +239,7 @@ final class GmailSyncCoordinator {
         var ids: Set<String> = []
         var deleted: Set<String> = []
         var changed: Set<String> = []
+        var added: Set<String> = []
         var token: String?
         var seen: Set<String> = []
         repeat {
@@ -202,11 +252,12 @@ final class GmailSyncCoordinator {
             ids.formUnion(page.affectedThreadIDs)
             deleted.formUnion(page.deletedThreadIDs)
             changed.formUnion(page.otherwiseChangedThreadIDs)
+            added.formUnion(page.addedMessageIDs)
             token = page.nextPageToken?.isEmpty == false ? page.nextPageToken : nil
             if let token {
                 guard seen.insert(token).inserted else { throw GmailError.invalidResponse }
             } else {
-                return HistoryChanges(ids: ids, deletedOnly: deleted.subtracting(changed), checkpoint: page.historyId)
+                return HistoryChanges(ids: ids, deletedOnly: deleted.subtracting(changed), added: added, checkpoint: page.historyId)
             }
         } while true
     }

@@ -68,6 +68,8 @@ actor HubAPI: GmailSearching, GmailPriorityLoading, GmailUnreadLoading, GmailMut
         if on, label == "INBOX", let conversation = removed.removeValue(forKey: threadID) { mail.append(conversation) }
     }
     func send(_ message: OutgoingMessage) async throws { sent.append(message) }
+    /// New mail, there the next time the Inbox is asked for.
+    func deliver(_ conversation: GmailConversation) { mail.append(conversation) }
 }
 
 /// An account whose requests fail until it is told sign-in worked.
@@ -481,5 +483,99 @@ struct MailHubTests {
         #expect(hub.canArchive(key))
         #expect(await hub.archive(key))
         #expect(hub.conversations.map(\.key.threadID) == ["alza2"])
+    }
+}
+
+// MARK: Opening a conversation from a notification
+
+extension MailHubTests {
+    private func key(_ account: String, _ thread: String) -> ConversationKey {
+        ConversationKey(accountID: account, threadID: thread)
+    }
+
+    @Test("A notification opens its conversation in All Inboxes, which already shows it")
+    func revealInAllInboxes() async {
+        let hub = await makeHub([
+            "a": HubAPI([Self.conversation("a1", at: 100)]),
+            "b": HubAPI([Self.conversation("b1", at: 200, unread: true)])
+        ])
+        let model = InboxModel(hub: hub)
+        model.reveal(MailHub.RevealRequest(accountID: "b", threadID: "b1"))
+        #expect(hub.selection == .allInboxes)
+        #expect(model.selectedID == key("b", "b1"))
+    }
+
+    @Test("From another folder, a notification opens its account's Inbox, then the conversation once it is listed")
+    func revealFromAnotherFolder() async {
+        let hub = await makeHub([
+            "a": HubAPI([Self.conversation("a1", at: 100)]),
+            "b": HubAPI([Self.conversation("b1", at: 200, unread: true)])
+        ])
+        let model = InboxModel(hub: hub)
+        model.show(.folder(.sent))
+        await hub.refresh()
+        model.reveal(MailHub.RevealRequest(accountID: "b", threadID: "b1"))
+        #expect(hub.selection == .folder(.inbox))
+        #expect(hub.accounts.selectedAccount?.id == "b")
+        #expect(model.selectedID == nil)
+        await hub.refresh()
+        // What the window does whenever the list changes.
+        model.revealIfListed()
+        #expect(model.selectedID == key("b", "b1"))
+    }
+
+    @Test("A conversation the list hasn't caught up with opens when it does, unless another folder was chosen meanwhile")
+    func revealWaitsForTheList() async {
+        let api = HubAPI([Self.conversation("a1", at: 100)])
+        let hub = await makeHub(["a": api])
+        let model = InboxModel(hub: hub)
+        model.reveal(MailHub.RevealRequest(accountID: "a", threadID: "a2"))
+        #expect(model.selectedID == nil)
+        await api.deliver(Self.conversation("a2", at: 200, unread: true))
+        await hub.refresh()
+        model.revealIfListed()
+        #expect(model.selectedID == key("a", "a2"))
+
+        model.reveal(MailHub.RevealRequest(accountID: "a", threadID: "a3"))
+        model.show(.folder(.sent))
+        model.show(.folder(.inbox))
+        await api.deliver(Self.conversation("a3", at: 300, unread: true))
+        await hub.refresh()
+        model.revealIfListed()
+        #expect(model.selectedID == nil)
+    }
+
+    @Test("A notification about several messages only opens the Inbox")
+    func revealInbox() async {
+        let hub = await makeHub(["a": HubAPI([Self.conversation("a1", at: 100, unread: true)])])
+        let model = InboxModel(hub: hub)
+        model.show(.folder(.sent))
+        model.reveal(MailHub.RevealRequest(accountID: "a", threadID: nil))
+        await hub.refresh()
+        model.revealIfListed()
+        #expect(hub.selection == .folder(.inbox))
+        #expect(model.selectedID == nil)
+    }
+
+    @Test("A conversation in a collapsed Priority Inbox section opens the section to show it")
+    func revealInCollapsedSection() async {
+        let important = Self.conversation("a1", at: 100, unread: true).setting("IMPORTANT", to: true)
+        let hub = await makeHub(["a": HubAPI([important, Self.conversation("a2", at: 200, unread: true)])])
+        hub.usesPriorityInbox = true
+        hub.toggleSection(.everythingElse)
+        let model = InboxModel(hub: hub)
+        #expect(!model.conversationKeys.contains(key("a", "a2")))
+        model.reveal(MailHub.RevealRequest(accountID: "a", threadID: "a2"))
+        #expect(!hub.collapsedSections.contains(.everythingElse))
+        #expect(model.selectedID == key("a", "a2"))
+    }
+
+    @Test("A window takes the request, so one opened later doesn't show it again")
+    func revealRequestIsTaken() async {
+        let hub = await makeHub(["a": HubAPI([Self.conversation("a1", at: 100)])])
+        hub.reveal(accountID: "a", threadID: "a1")
+        #expect(hub.takeRevealRequest() == MailHub.RevealRequest(accountID: "a", threadID: "a1"))
+        #expect(hub.revealRequest == nil)
+        #expect(hub.takeRevealRequest() == nil)
     }
 }

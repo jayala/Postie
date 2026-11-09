@@ -1,29 +1,15 @@
 import SwiftUI
 
+/// The main window's content. Opening the accounts and keeping them in sync is `MailService`'s job, because
+/// it has to go on while this window is closed.
 struct MailRootView: View {
     let hub: MailHub
     @Environment(\.scenePhase) private var scenePhase
-    @AppStorage(SettingsKey.showsDockBadge) private var showsDockBadge = true
     // The welcome screen was on screen, so the next account is the first one: finish with the "all set" step.
     @State private var sawWelcome = false
     @State private var isOnboarding = false
-    private let restoresSession: Bool
-    private let updatesDockBadge: Bool
-
-    init(hub: MailHub, restoresSession: Bool = true, updatesDockBadge: Bool = true) {
-        self.hub = hub
-        self.restoresSession = restoresSession
-        self.updatesDockBadge = updatesDockBadge
-    }
 
     private var accounts: AccountStore { hub.accounts }
-
-    /// Unread mail, plus the messages that could not be sent.
-    private var unreadCount: Int? {
-        guard !hub.sessions.isEmpty else { return nil }
-        let total = (hub.unreadInboxCount ?? 0) + hub.outbox.failedCount
-        return hub.unreadInboxCount == nil && total == 0 ? nil : total
-    }
 
     var body: some View {
         ZStack {
@@ -43,40 +29,15 @@ struct MailRootView: View {
                 WelcomeView(accounts: accounts, storageError: hub.storageError) { sawWelcome = true }
             }
         }
-        .task {
-            // Accounts first, so a returning person never sees the welcome screen flash by.
-            if restoresSession { accounts.restore() }
-            await hub.prepare()
-        }
-        .task(id: AccountBinding(
-            ids: accounts.accounts.map(\.id), disconnected: accounts.accounts.filter(\.needsReconnect).map(\.id), ready: !hub.isPreparing
-        )) {
-            guard !hub.isPreparing else { return }
-            await hub.reconcile()
-            if restoresSession { await accounts.refreshProfilePictures() }
-        }
         // Looks for new mail whenever the window comes back to the foreground.
         .task(id: scenePhase) {
             if scenePhase == .active { await hub.refresh() }
         }
-        .onChange(of: unreadCount, initial: true) { _, _ in updateDockBadge() }
-        .onChange(of: showsDockBadge) { _, _ in updateDockBadge() }
         .onChange(of: accounts.accounts.isEmpty) { _, isEmpty in
             guard !isEmpty else { return }
             if sawWelcome { isOnboarding = true }
             sawWelcome = false
         }
-    }
-
-    private func updateDockBadge() {
-        if updatesDockBadge { DockBadge.update(unreadCount: showsDockBadge ? unreadCount : nil) }
-    }
-
-    private struct AccountBinding: Hashable {
-        let ids: [String]
-        /// Accounts that need signing in again; reconnecting one changes this although the IDs stay the same.
-        let disconnected: [String]
-        let ready: Bool
     }
 }
 
@@ -185,11 +146,8 @@ private struct AccountsReadyView: View {
 
 #Preview("Welcome") {
     let accounts = AccountStore(vault: MemoryAccountVault())
-    MailRootView(
-        hub: MailHub(accounts: accounts, persistsMail: false, syncsInBackground: false),
-        restoresSession: false, updatesDockBadge: false
-    )
-    .frame(width: 960, height: 640)
+    MailRootView(hub: MailHub(accounts: accounts, persistsMail: false, syncsInBackground: false))
+        .frame(width: 960, height: 640)
 }
 
 #Preview("All set") {

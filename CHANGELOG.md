@@ -38,6 +38,12 @@ All notable changes to Postie are documented here. The format is based on
 - Mark a conversation as important or not important from the Message menu (⇧⌘I), its
   context menu, or the button next to its star. This can be undone. Important
   conversations show a marker in the list.
+- Notifications for new mail in the Inbox, with who it is from, the subject and how
+  it starts. Click one to open the conversation. When more than three messages
+  arrive at once, such as after your Mac wakes up, they share one notification.
+  While Postie is the app in front, they go straight to Notification Center. Turn
+  them off in Settings > General.
+- Open Postie at login, an option in Settings > General.
 
 ### Changed
 
@@ -45,6 +51,12 @@ All notable changes to Postie are documented here. The format is based on
   account merged. Search and new messages follow the account on screen.
 - Opening Postie or a folder no longer opens the first conversation and marks it
   as read. Nothing is selected until you choose a conversation.
+- Postie keeps running when you close its window, like Mail, so it can still tell
+  you about new mail and keep the Dock badge up to date. Click its Dock icon to open
+  the window again, and quit with ⌘Q.
+- New mail shows up within about 30 seconds instead of up to five minutes. Postie
+  asks Gmail whether anything has changed every 30 seconds, which takes one small
+  request, and only syncs when something has.
 
 ### Fixed
 
