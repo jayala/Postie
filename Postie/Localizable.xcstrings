@@ -99,6 +99,9 @@
     "Accounts" : {
       "comment" : "Settings tab and list name"
     },
+    "Actual Size" : {
+
+    },
     "Add" : {
 
     },
@@ -154,6 +157,9 @@
 
     },
     "Bcc" : {
+
+    },
+    "Bigger" : {
 
     },
     "BCC email addresses" : {
@@ -696,6 +702,9 @@
     "Sign in with Google" : {
 
     },
+    "Smaller" : {
+
+    },
     "Star conversation" : {
 
     },
@@ -712,6 +721,9 @@
 
     },
     "Tentative" : {
+
+    },
+    "Text Size" : {
 
     },
     "Switches to another account" : {

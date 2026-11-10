@@ -5,6 +5,7 @@ struct HTMLMessageBody: View {
     let messageID: String
     let html: String
     let plainText: String
+    var messageTextSize = MessageTextSize.defaultSize
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.openURL) private var openURL
     @Environment(\.attachmentLoader) private var attachmentLoader
@@ -14,13 +15,14 @@ struct HTMLMessageBody: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             if failed {
-                PlainMessageText(text: plainText)
+                PlainMessageText(text: plainText, textSize: messageTextSize)
                 Text("Unable to display HTML. Showing plain text.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             } else {
                 EmailHTMLWebView(
                     html: html, dark: colorScheme == .dark,
+                    textScale: MessageTextSize.scale(for: messageTextSize),
                     heightChanged: { height = $0 }, failed: { failed = true },
                     openLink: { openURL($0) },
                     loadEmbeddedImage: attachmentLoader.map { loader in
@@ -40,6 +42,9 @@ struct HTMLMessageBody: View {
 /// This is a text view because SwiftUI's `Text` cannot show a different cursor over just its links.
 struct PlainMessageText: NSViewRepresentable {
     let text: String
+    var textSize = MessageTextSize.defaultSize
+
+    private var pointSize: CGFloat { CGFloat(MessageTextSize.clamped(textSize)) }
 
     func makeNSView(context: Context) -> NSTextView {
         let view = NSTextView()
@@ -58,22 +63,22 @@ struct PlainMessageText: NSViewRepresentable {
 
     func updateNSView(_ view: NSTextView, context: Context) {
         // Setting the same text again would clear the person's selection.
-        guard view.string != text else { return }
-        view.textStorage?.setAttributedString(Self.linked(text))
+        guard view.string != text || view.font?.pointSize != pointSize else { return }
+        view.textStorage?.setAttributedString(Self.linked(text, pointSize: pointSize))
     }
 
     func sizeThatFits(_ proposal: ProposedViewSize, nsView: NSTextView, context: Context) -> CGSize? {
         guard let width = proposal.width, width.isFinite else { return nil }
-        let height = Self.linked(text).boundingRect(with: CGSize(width: width, height: .greatestFiniteMagnitude),
+        let height = Self.linked(text, pointSize: pointSize).boundingRect(with: CGSize(width: width, height: .greatestFiniteMagnitude),
                                                     options: [.usesLineFragmentOrigin, .usesFontLeading]).height
         return CGSize(width: width, height: ceil(height))
     }
 
-    static func linked(_ text: String) -> NSAttributedString {
+    static func linked(_ text: String, pointSize: CGFloat = CGFloat(MessageTextSize.defaultSize)) -> NSAttributedString {
         let paragraph = NSMutableParagraphStyle()
         paragraph.lineSpacing = 3
         let result = NSMutableAttributedString(string: text, attributes: [
-            .font: NSFont.preferredFont(forTextStyle: .body),
+            .font: NSFont.systemFont(ofSize: pointSize),
             .foregroundColor: NSColor.labelColor,
             .paragraphStyle: paragraph
         ])
@@ -145,7 +150,7 @@ enum EmailHTMLPolicy {
         return configuration
     }
 
-    static func document(_ html: String, dark: Bool) -> String {
+    static func document(_ html: String, dark: Bool, textScale: Double = 1) -> String {
         // The restrictive CSP precedes all untrusted markup; later policies cannot relax it.
         """
         <!doctype html><html><head><meta charset="utf-8">
@@ -153,7 +158,7 @@ enum EmailHTMLPolicy {
         <meta http-equiv="x-dns-prefetch-control" content="off">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <style>
-        :root { color-scheme: \(dark ? "dark" : "light"); }
+        :root { color-scheme: \(dark ? "dark" : "light"); --postie-text-scale: \(textScale); }
         body { display: flow-root; margin: 0; padding: 0; font: 13px -apple-system, sans-serif;
                line-height: 1.5; color: CanvasText; background-color: Canvas; overflow-wrap: break-word; }
         img, table { max-width: 100%; }
@@ -348,6 +353,36 @@ enum EmailHTMLPolicy {
             }
         }
         fitColors();
+        // Snapshot every computed size before changing any ancestor: inherited/em sizes must
+        // scale once, not compound. Keep the original inline declarations for an exact reset.
+        const textStyles = Array.from(document.querySelectorAll('body, body *')).map(element => {
+            const computed = getComputedStyle(element);
+            return {
+                element,
+                fontSize: parseFloat(computed.fontSize),
+                lineHeight: parseFloat(computed.lineHeight),
+                originals: ['font-size', 'line-height'].map(name => [
+                    name, element.style.getPropertyValue(name), element.style.getPropertyPriority(name)
+                ])
+            };
+        });
+        window.postieSetTextScale = scale => {
+            for (const { element, fontSize, lineHeight, originals } of textStyles) {
+                if (scale === 1) {
+                    for (const [name, value, priority] of originals) {
+                        if (value) element.style.setProperty(name, value, priority);
+                        else element.style.removeProperty(name);
+                    }
+                } else {
+                    element.style.setProperty('font-size', (fontSize * scale) + 'px', 'important');
+                    if (Number.isFinite(lineHeight)) {
+                        element.style.setProperty('line-height', (lineHeight * scale) + 'px', 'important');
+                    }
+                }
+            }
+            report();
+        };
+        window.postieSetTextScale(Number(getComputedStyle(root).getPropertyValue('--postie-text-scale')) || 1);
         new ResizeObserver(report).observe(document.body);
         window.addEventListener('resize', report);
         window.addEventListener('load', report);
@@ -359,6 +394,7 @@ enum EmailHTMLPolicy {
 struct EmailHTMLWebView: NSViewRepresentable {
     let html: String
     let dark: Bool
+    var textScale: Double = 1
     let heightChanged: (CGFloat) -> Void
     let failed: () -> Void
     let openLink: (URL) -> Void
@@ -386,6 +422,7 @@ struct EmailHTMLWebView: NSViewRepresentable {
         coordinator.failed = failed
         coordinator.openLink = openLink
         coordinator.embeddedImages.load = loadEmbeddedImage
+        coordinator.setTextScale(textScale, in: view)
         // Compare the inputs: building the document string for a large email on every update just to compare it is wasteful.
         guard html != coordinator.html || dark != coordinator.dark else { return }
         view.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
@@ -413,11 +450,32 @@ struct EmailHTMLWebView: NSViewRepresentable {
         var openLink: ((URL) -> Void)?
         let embeddedImages = EmbeddedImageHandler()
         private var awaitingInitialDocument = false
+        private var textScale: Double = 1
+
+        func setTextScale(_ scale: Double, in view: EmailWebView) {
+            guard textScale != scale else { return }
+            textScale = scale
+            applyTextScale(in: view)
+        }
+
+        private func applyTextScale(in view: WKWebView) {
+            // This isolated-world function changes presentation without reloading the document,
+            // so selection and expanded quoted history survive size changes.
+            view.evaluateJavaScript(
+                "window.postieSetTextScale?.(\(textScale))",
+                in: nil, in: EmailHTMLPolicy.world, completionHandler: nil
+            )
+        }
+
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            // The preference may have changed while the content blocker/document was loading.
+            applyTextScale(in: webView)
+        }
 
         func load(html: String, dark: Bool, in view: EmailWebView) {
             self.html = html
             self.dark = dark
-            let document = EmailHTMLPolicy.document(html, dark: dark)
+            let document = EmailHTMLPolicy.document(html, dark: dark, textScale: textScale)
             loadTask?.cancel()
             view.stopLoading()
             loadTask = Task { @MainActor [weak self, weak view] in
@@ -563,6 +621,12 @@ private func reservationPreview() -> ThreadDetailView {
             body: "Your reservation is confirmed. Haircut, Friday at 14:30, 24 Market Street.",
             htmlBody: reservationPreviewHTML)], mailbox: .inbox
     ), canModifyLabels: false, toggleStar: {}, toggleImportant: {})
+}
+
+#Preview("Larger HTML text") {
+    HTMLMessageBody(messageID: "reservation", html: reservationPreviewHTML, plainText: "", messageTextSize: 20)
+        .padding(20)
+        .frame(width: 620, height: 640, alignment: .top)
 }
 
 #Preview("HTML reservation") {

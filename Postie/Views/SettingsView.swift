@@ -2,6 +2,7 @@ import SwiftUI
 
 enum SettingsKey {
     static let showsDockBadge = "showsDockBadge"
+    static let messageTextSize = "messageTextSize"
     static let notifiesNewMail = "notifiesNewMail"
     static let usesPriorityInbox = "usesPriorityInbox"
     static let collapsedInboxSections = "collapsedInboxSections"

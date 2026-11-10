@@ -28,6 +28,7 @@ extension FocusedValues {
 struct MailCommands: Commands {
     @FocusedValue(\.mailActions) private var actions
     let updater: UpdaterModel
+    @AppStorage(SettingsKey.messageTextSize) private var messageTextSize = MessageTextSize.defaultSize
 
     /// ⌘1…⌘9 pick the first nine folders; any further folder simply has no shortcut.
     private static func shortcut(forMailboxAt index: Int) -> KeyboardShortcut? {
@@ -45,6 +46,20 @@ struct MailCommands: Commands {
             Button("New Message") { actions?.newMessage?() }
                 .keyboardShortcut("n", modifiers: .command)
                 .disabled(actions?.newMessage == nil)
+        }
+
+        CommandGroup(after: .toolbar) {
+            Menu("Text Size") {
+                Button("Bigger") { messageTextSize = MessageTextSize.clamped(messageTextSize) + 1 }
+                    .keyboardShortcut("+", modifiers: .command)
+                    .disabled(actions == nil || messageTextSize >= MessageTextSize.range.upperBound)
+                Button("Smaller") { messageTextSize = MessageTextSize.clamped(messageTextSize) - 1 }
+                    .keyboardShortcut("-", modifiers: .command)
+                    .disabled(actions == nil || messageTextSize <= MessageTextSize.range.lowerBound)
+                // No ⌘0: it opens All Inboxes, next to ⌘1…⌘9 for the folders.
+                Button("Actual Size") { messageTextSize = MessageTextSize.defaultSize }
+                    .disabled(actions == nil || messageTextSize == MessageTextSize.defaultSize)
+            }
         }
 
         CommandMenu("Mailbox") {
