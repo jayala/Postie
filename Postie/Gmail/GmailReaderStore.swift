@@ -58,6 +58,7 @@ final class GmailReaderStore {
     @ObservationIgnored private let drafter: (any GmailDrafting)?
     @ObservationIgnored private let contactLoader: (any GmailContactLoading)?
     @ObservationIgnored private let labelLoader: (any GmailLabelLoading)?
+    @ObservationIgnored private let calendarReader: (any GoogleCalendarReading)?
     /// Google's contacts are not asked for again before this, so a failing request is not repeated every refresh.
     @ObservationIgnored private var nextContactsFetch = Date.distantPast
     @ObservationIgnored private let cache: GmailCacheSession?
@@ -89,6 +90,7 @@ final class GmailReaderStore {
         drafter = api as? any GmailDrafting
         contactLoader = api as? any GmailContactLoading
         labelLoader = api as? any GmailLabelLoading
+        calendarReader = api as? any GoogleCalendarReading
         self.mailbox = mailbox
         self.cache = cache
         if let cache, let syncAPI = api as? any GmailSyncReading {
@@ -522,6 +524,18 @@ final class GmailReaderStore {
     func embeddedImageData(contentID: String, messageID: String) async throws -> Data {
         guard let attachmentLoader else { throw GmailError.permissionRequired }
         return try await attachmentLoader.embeddedImageData(contentID: contentID, messageID: messageID)
+    }
+
+    func calendarData(partID: String, messageID: String, threadID: String) async throws -> Data {
+        let conversation = try await api.conversation(id: threadID)
+        guard let data = conversation.messages.first(where: { $0.id == messageID })?.calendarSources
+            .first(where: { $0.partID == partID })?.data else { throw CalendarInvitationError.unsupported }
+        return data
+    }
+
+    func calendarStatus(for invitation: CalendarInvitation) async throws -> GoogleCalendarStatus? {
+        guard let calendarReader else { throw GoogleCalendarError.unavailable }
+        return try await calendarReader.calendarStatus(for: invitation)
     }
 
     var canSend: Bool { sender != nil }

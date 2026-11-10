@@ -28,7 +28,7 @@ struct ConversationDetailView: View {
                 }
                 GmailConversationView(
                     conversation: conversation, mailbox: hub.mailbox, labelNames: hub.labelNames(for: key.accountID),
-                    canModifyLabels: hub.canModifyLabels(key),
+                    hub: hub, key: key, canModifyLabels: hub.canModifyLabels(key),
                     toggleStar: { model.toggleStar(MergedConversation(key: key, conversation: conversation)) },
                     toggleImportant: { model.toggleImportant(MergedConversation(key: key, conversation: conversation)) },
                     openDraft: hub.canEditDraft(key) ? { model.editDraft(key) } : nil
@@ -129,18 +129,48 @@ private struct GmailConversationView: View {
     let conversation: GmailConversation
     let mailbox: Mailbox
     let labelNames: [String: String]
+    @State private var calendarModel: CalendarConversationModel
     let canModifyLabels: Bool
     let toggleStar: () -> Void
     let toggleImportant: () -> Void
     let openDraft: (() -> Void)?
+
+    init(conversation: GmailConversation, mailbox: Mailbox, labelNames: [String: String], hub: MailHub, key: ConversationKey,
+         canModifyLabels: Bool, toggleStar: @escaping () -> Void, toggleImportant: @escaping () -> Void,
+         openDraft: (() -> Void)?) {
+        self.conversation = conversation
+        self.mailbox = mailbox
+        self.labelNames = labelNames
+        self.canModifyLabels = canModifyLabels
+        self.toggleStar = toggleStar
+        self.toggleImportant = toggleImportant
+        self.openDraft = openDraft
+        _calendarModel = State(initialValue: CalendarConversationModel(hub: hub, key: key))
+    }
 
     var body: some View {
         ThreadDetailView(
             thread: conversation.presentation(includingBodies: true, mailbox: mailbox, labelNames: labelNames),
             canModifyLabels: canModifyLabels, toggleStar: toggleStar, toggleImportant: toggleImportant, openDraft: openDraft
         )
+        .environment(\.calendarModel, calendarModel)
+        .task(id: calendarModel.loadRequest(for: conversation)) {
+            await calendarModel.load(conversation)
+        }
     }
 }
+
+#if DEBUG
+#Preview("Calendar invitation in message") {
+    let hub = MailHub(accounts: AccountStore(vault: MemoryAccountVault()), persistsMail: false, syncsInBackground: false)
+    GmailConversationView(
+        conversation: CalendarPreviewData.conversation, mailbox: .inbox, labelNames: [:], hub: hub,
+        key: ConversationKey(accountID: "calendar-preview", threadID: "calendar-preview"),
+        canModifyLabels: false, toggleStar: {}, toggleImportant: {}, openDraft: nil
+    )
+    .frame(width: 680, height: 800)
+}
+#endif
 
 /// Where a queued message stands, with what can be done about it.
 private struct OutboxBanner: View {

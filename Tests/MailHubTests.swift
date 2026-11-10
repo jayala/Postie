@@ -3,7 +3,7 @@ import Testing
 @testable import Postie
 
 /// A Gmail account that serves fixed mail and records what is done to it.
-actor HubAPI: GmailSearching, GmailPriorityLoading, GmailUnreadLoading, GmailMutating, GmailSending {
+actor HubAPI: GmailSearching, GmailPriorityLoading, GmailUnreadLoading, GmailMutating, GmailSending, GoogleCalendarReading {
     private(set) var mail: [GmailConversation]
     /// What asking for the folder's unread threads finds, page by page.
     private var unreadPages: [[GmailConversation]] = []
@@ -20,6 +20,9 @@ actor HubAPI: GmailSearching, GmailPriorityLoading, GmailUnreadLoading, GmailMut
     private var failure: GmailError?
     private(set) var sent: [OutgoingMessage] = []
     private(set) var searches: [(query: String, mailbox: Mailbox?)] = []
+    private var sendError: GmailError?
+    private var calendarResult: Result<GoogleCalendarStatus?, GmailError> = .success(nil)
+    private(set) var calendarQueries: [String] = []
 
     init(_ mail: [GmailConversation]) { self.mail = mail }
 
@@ -67,9 +70,18 @@ actor HubAPI: GmailSearching, GmailPriorityLoading, GmailUnreadLoading, GmailMut
         if let index = mail.firstIndex(where: { $0.id == threadID }) { mail[index] = mail[index].setting(label, to: on) }
         if on, label == "INBOX", let conversation = removed.removeValue(forKey: threadID) { mail.append(conversation) }
     }
-    func send(_ message: OutgoingMessage) async throws { sent.append(message) }
     /// New mail, there the next time the Inbox is asked for.
     func deliver(_ conversation: GmailConversation) { mail.append(conversation) }
+    func setCalendarResult(_ result: Result<GoogleCalendarStatus?, GmailError>) { calendarResult = result }
+    func calendarStatus(for invitation: CalendarInvitation) async throws -> GoogleCalendarStatus? {
+        calendarQueries.append(invitation.uid)
+        return try calendarResult.get()
+    }
+    func failSending(_ error: GmailError) { sendError = error }
+    func send(_ message: OutgoingMessage) async throws {
+        if let sendError { throw sendError }
+        sent.append(message)
+    }
 }
 
 /// An account whose requests fail until it is told sign-in worked.
@@ -99,13 +111,13 @@ struct MailHubTests {
         ])
     }
 
-    func makeHub(_ apis: [String: HubAPI], order: [String]? = nil) async -> MailHub {
+    func makeHub(_ apis: [String: HubAPI], order: [String]? = nil, calendarAccess: Set<String> = []) async -> MailHub {
         let ids = order ?? apis.keys.sorted()
         let stored = ids.enumerated().map { index, id in
             StoredAccount(
                 identity: GoogleIdentity(id: id, email: "\(id)@example.com", name: nil),
                 credentials: GoogleCredentials(refreshToken: "r", accessToken: "t", expiresAt: .distantFuture,
-                                               scopes: Set(GoogleOAuthClient.requiredScopes)),
+                                               scopes: Set(GoogleOAuthClient.requiredScopes + (calendarAccess.contains(id) ? [GoogleOAuthClient.calendarEventsScope] : []))),
                 addedAt: Date(timeIntervalSince1970: Double(index))
             )
         }
