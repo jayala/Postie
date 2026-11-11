@@ -59,6 +59,7 @@ All notable changes to Postie are documented here. The format is based on
 - New mail shows up within about 30 seconds instead of up to five minutes. Postie
   asks Gmail whether anything has changed every 30 seconds, which takes one small
   request, and only syncs when something has.
+- View > Text Size > Actual Size has no shortcut, as ⌘0 opens All Inboxes.
 
 ### Fixed
 
@@ -86,6 +87,47 @@ All notable changes to Postie are documented here. The format is based on
   instead of stopping at the first line break or after 100 characters.
 - Accented letters in some emails no longer appear garbled, as in "dÃ­as". Mail
   already saved on your Mac is fixed as well.
+
+## [0.5.0] - 2026-11-11
+
+### Added
+
+- Separate message-list text size setting in Settings > General, from 13 pt up to
+  26 pt. Sender names, subjects, previews, and metadata scale together,
+  independently of message-body zoom.
+- Previous and next conversation controls, including keyboard shortcuts, and
+  easier access to earlier replies in a conversation.
+- Mailbox loading, search, and pagination status, plus progress indicators for
+  archive and trash actions.
+
+### Changed
+
+- Larger default text in the message list for more comfortable reading.
+- Conversation subjects stay visible above scrolling messages.
+- Simpler recipient headers with expandable addresses, clearer conversation
+  counts, and more readable text widths without changing authored HTML layouts.
+
+### Fixed
+
+- New conversations retain their full row height instead of clipping subjects
+  and previews.
+- Mail is automatically marked as read only while its reader window is active.
+
+## [0.4.0] - 2026-11-10
+
+### Added
+
+- Calendar invitation cards with event details and Accept, Maybe and Decline
+  responses sent through the Gmail account that received the invitation.
+- Optional read-only Google Calendar access to show your existing response status.
+- Reading text size controls under View > Text Size: Bigger (⌘+), Smaller (⌘−)
+  and Actual Size (⌘0). The preference is remembered for HTML and plain-text
+  email bodies.
+
+### Fixed
+
+- Automatic update checks are now enabled by default, while respecting an
+  explicit choice to disable them in Settings.
 
 ## [0.3.0] - 2026-10-14
 
@@ -155,3 +197,6 @@ First public release.
 
 [0.1.0]: https://github.com/igorkulman/Postie/releases/tag/v0.1.0
 [0.2.0]: https://github.com/igorkulman/Postie/releases/tag/v0.2.0
+[0.3.0]: https://github.com/igorkulman/Postie/releases/tag/v0.3.0
+[0.4.0]: https://github.com/igorkulman/Postie/releases/tag/v0.4.0
+[0.5.0]: https://github.com/igorkulman/Postie/releases/tag/v0.5.0

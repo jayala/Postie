@@ -16,7 +16,7 @@ subscriptions, AI features, or workspace bloat.
   forwards and archive/trash actions always go through the account the conversation
   belongs to. New messages come from the account on screen, and in All Inboxes from
   the default account chosen in Settings
-- Inbox, Drafts, Sent, Archive, Junk, and Trash
+- Inbox, Drafts, Outbox, Sent, Archive, Junk, and Trash
 - Priority Inbox, optional in Settings: groups the Inbox into Important and unread,
   Starred, and Everything else, each of which can be collapsed. Older important and
   starred mail shows up there without scrolling to it. This is Postie's own setting,
@@ -24,13 +24,20 @@ subscriptions, AI features, or workspace bloat.
 - Your Gmail labels in the sidebar, nested as in Gmail with their unread counts, for
   the selected account, including in All Inboxes. Labels Gmail is set not to list are
   under More
-- Conversation view with HTML email rendering, and the conversation's Gmail labels
-  next to its subject
+- Conversation view with HTML email rendering, the conversation's Gmail labels next
+  to its subject, easy access to earlier replies, expandable recipient addresses,
+  and a subject that stays visible while scrolling
+- Previous/next conversation navigation from the toolbar or keyboard
+- Independent text sizing: 13–26 pt for the message list in Settings > General,
+  and HTML/plain-text message-body zoom in View > Text Size
 - Compose, reply, reply all, and forward in a rich-text editor (bold, italic,
   underline, lists, links), with attachments and your Gmail signature
 - Drafts are saved in Gmail, so they show up in every Gmail client: closing a
   message you have written asks whether to keep it, and drafts can be edited
   later from the Drafts folder
+- Persistent Outbox: outgoing messages and attachments are saved on this Mac,
+  with background delivery and retries while Postie is running. Queued mail
+  survives quitting; failed messages can be retried, edited, or deleted
 - Archive, trash, star, mark as important, and read/unread actions
 - Select several conversations with Shift or Command to archive, trash, forward, or
   mark them as read or unread together. They are forwarded in one message
@@ -65,8 +72,34 @@ subscriptions, AI features, or workspace bloat.
   More than three messages at once share one notification
 - Postie keeps running after you close its window, like Mail, so notifications and
   the Dock badge keep working. It can open at login, in Settings > General
+- Mailbox loading, search, and pagination status, with progress indicators for
+  archive and trash actions
 - Native light and dark mode
 - Dock badge for unread Inbox mail
+- Automatic updates, with a manual Check for Updates… command in the Postie menu
+
+## Keyboard shortcuts
+
+| Action | Shortcut |
+| --- | --- |
+| New message | ⌘N |
+| Get new mail | ⇧⌘N |
+| Previous / next conversation | ⌥⌘↑ / ⌥⌘↓ |
+| Reply / reply all | ⌘R / ⇧⌘R |
+| Forward | ⇧⌘F |
+| Edit draft | ⌘E |
+| Mark as read / unread | ⇧⌘U |
+| Flag / unflag | ⇧⌘L |
+| Mark as important / not important | ⇧⌘I |
+| Archive | ⌃⌘A |
+| Move to Trash | ⌘⌫ |
+| Undo / redo | ⌘Z / ⇧⌘Z |
+| Close the open conversation | Esc |
+| All Inboxes | ⌘0 |
+| Bigger / smaller message-body text | ⌘+ / ⌘− |
+
+Text-size shortcuts affect the message body, not the message list. Actual Size,
+in View > Text Size, has no shortcut, as ⌘0 opens All Inboxes.
 
 ## Status
 
