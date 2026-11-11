@@ -2,6 +2,13 @@ import Foundation
 import Testing
 @testable import Postie
 
+/// Gmail turning every request down, as it does once the session has expired.
+/// Not `FixtureTransport`: when this file and GmailTestSupport.swift are compiled together, using it here
+/// makes Swift 6.4 reject that actor's declaration as `nonisolated`.
+private actor DeniedTransport: GmailTransport {
+    func send(_ request: URLRequest) async throws -> GmailHTTPResponse { GmailHTTPResponse(data: Data(), statusCode: 401) }
+}
+
 private actor ThreadHeaderTransport: GmailTransport {
     private(set) var requests: [URLRequest] = []
     func send(_ request: URLRequest) async throws -> GmailHTTPResponse {
@@ -239,7 +246,7 @@ struct GmailSendingTests {
 
     @Test("Send failures propagate")
     func failure() async {
-        let api = GmailAPI(transport: FixtureTransport(mode: .denied)) { "t" }
+        let api = GmailAPI(transport: DeniedTransport()) { "t" }
         await #expect(throws: GmailError.http(401)) { try await api.send(message) }
     }
 
