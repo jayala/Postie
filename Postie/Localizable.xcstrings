@@ -40,6 +40,9 @@
         }
       }
     },
+    "%lld conversations" : {
+
+    },
     "%lld Conversations Selected" : {
 
     },
@@ -89,6 +92,9 @@
           }
         }
       }
+    },
+    "1 conversation" : {
+
     },
     "%lld new messages" : {
       "comment" : "Title of the notification about several messages arriving at once; always more than three"
@@ -396,9 +402,6 @@
     "Labels" : {
 
     },
-    "Loading" : {
-      "comment" : "VoiceOver label of a progress spinner"
-    },
     "Loading conversation…" : {
 
     },
@@ -406,6 +409,9 @@
 
     },
     "Loading mail…" : {
+
+    },
+    "Loading more…" : {
 
     },
     "Mail changed while loading this page. Please try again." : {
@@ -820,6 +826,9 @@
 
     },
     "Updated invitation" : {
+
+    },
+    "Updating…" : {
 
     },
     "Waiting to be sent" : {

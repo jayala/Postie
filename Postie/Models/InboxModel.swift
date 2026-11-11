@@ -298,9 +298,11 @@ final class InboxModel {
         }
     }
 
+    func isRemoving(_ key: ConversationKey) -> Bool { selection.isRemoving(key) }
+
     var canRemoveSelection: Bool {
         let keys = selectedKeys
-        return !keys.isEmpty && !keys.contains(where: selection.isRemoving)
+        return !keys.isEmpty && !keys.contains(where: isRemoving)
     }
 
     func remove(_ key: ConversationKey, archiving: Bool) {

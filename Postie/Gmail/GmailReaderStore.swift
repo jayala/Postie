@@ -1,6 +1,5 @@
 import Foundation
 import Observation
-import SwiftUI
 import os
 
 @MainActor
@@ -23,6 +22,7 @@ final class GmailReaderStore {
     private(set) var conversationsRevision = 0
     private(set) var nextPageToken: String?
     private(set) var isLoadingMailbox = false
+    private(set) var isLoadingMore = false
     private(set) var mailboxError: String?
     private(set) var mailboxVersion = 0
     private(set) var selectedConversation: GmailConversation?
@@ -135,6 +135,7 @@ final class GmailReaderStore {
         nextPageToken = nil
         nextUnreadPageToken = nil
         isLoadingMailbox = false
+        isLoadingMore = false
         isRestoringCache = false
         isLoadingConversation = false
         mailboxError = nil
@@ -415,8 +416,14 @@ final class GmailReaderStore {
         let startedFolder = folderGeneration
         let currentMailbox = mailbox
         isLoadingMailbox = true
+        isLoadingMore = true
         mailboxError = nil
-        defer { if folderGeneration == startedFolder { isLoadingMailbox = false } }
+        defer {
+            if folderGeneration == startedFolder {
+                isLoadingMailbox = false
+                isLoadingMore = false
+            }
+        }
         do {
             let checkpoint = try? await cache?.checkpoint()
             var found: [GmailConversation] = []
@@ -506,11 +513,9 @@ final class GmailReaderStore {
         }
         guard folderGeneration == startedFolder, conversation.belongs(to: mailbox),
               !conversations.contains(where: { $0.id == id }) else { return true }
-        withAnimation(.easeInOut(duration: 0.25)) {
-            let index = conversations.firstIndex { $0.latestDate < conversation.latestDate } ?? conversations.endIndex
-            conversations.insert(conversation, at: index)
-            mailboxVersion += 1
-        }
+        let index = conversations.firstIndex { $0.latestDate < conversation.latestDate } ?? conversations.endIndex
+        conversations.insert(conversation, at: index)
+        mailboxVersion += 1
         return true
     }
 
@@ -665,19 +670,17 @@ final class GmailReaderStore {
         guard folderGeneration == startedFolder else { return true }
         // Another conversation of the same batch may have just been refused.
         if refreshing { mailboxError = nil }
-        // Animate so the row slides out and its neighbors close the gap, like Mail.
-        withAnimation(.easeInOut(duration: 0.25)) {
-            if let label {
-                updateLoaded(id, setting: label, to: false)
-            } else {
-                conversations.removeAll { $0.id == id }
-                if selectedConversation?.id == id { selectedConversation = nil }
-                bodies[id] = nil
-            }
-            mailboxVersion += 1
-            // Reconcile UI selection in the same transaction, not after the network refresh.
-            onRemoved()
+        if let label {
+            updateLoaded(id, setting: label, to: false)
+        } else {
+            conversations.removeAll { $0.id == id }
+            if selectedConversation?.id == id { selectedConversation = nil }
+            bodies[id] = nil
         }
+        mailboxVersion += 1
+        // Reconcile UI selection immediately, not after the network refresh.
+        // The view owns animation so it can respect accessibility and navigation context.
+        onRemoved()
         // Reconcile the cache and unread badge with Gmail's history.
         if refreshing { await refresh() }
         return true
@@ -728,8 +731,14 @@ final class GmailReaderStore {
         let currentMailbox = mailbox
         let pageToken = refreshing ? nil : nextPageToken
         isLoadingMailbox = true
+        isLoadingMore = !refreshing
         mailboxError = nil
-        defer { if folderGeneration == startedFolder { isLoadingMailbox = false } }
+        defer {
+            if folderGeneration == startedFolder {
+                isLoadingMailbox = false
+                isLoadingMore = false
+            }
+        }
         do {
             let checkpoint = try? await cache?.checkpoint()
             var page = try await api.mailbox(currentMailbox, pageToken: pageToken)
