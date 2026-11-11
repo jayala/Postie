@@ -5,6 +5,28 @@ import Testing
 @Suite("Conversation selection policy")
 @MainActor
 struct ConversationSelectionTests {
+    @Test("Navigation uses the visible order without wrapping", arguments: [
+        ("middle", -1, ["new", "middle", "old"], "new"),
+        ("middle", 1, ["old", "middle", "new"], "new"),
+        ("new", -1, ["new", "old"], nil),
+        ("old", 1, ["new", "old"], nil),
+        ("missing", 1, ["new", "old"], nil),
+        ("new", 1, [], nil)
+    ])
+    func navigation(example: (String, Int, [String], String?)) {
+        var selection = ConversationSelection<String>()
+        selection.select(example.0)
+        #expect(selection.neighbor(offset: example.1, visibleIDs: example.2) == example.3)
+    }
+
+    @Test("With several conversations selected there is no previous or next one")
+    func navigationWithSeveralSelected() {
+        var selection = ConversationSelection<String>()
+        selection.select(["new", "middle"])
+        #expect(selection.neighbor(offset: -1, visibleIDs: ["new", "middle", "old"]) == nil)
+        #expect(selection.neighbor(offset: 1, visibleIDs: ["new", "middle", "old"]) == nil)
+    }
+
     @Test("Loading a list opens nothing until the user picks a conversation")
     func nothingOpensByItself() {
         var selection = ConversationSelection<String>()

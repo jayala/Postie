@@ -58,6 +58,13 @@ struct ConversationSelection<ID: Hashable> {
         }
     }
 
+    /// Navigation follows the current visible order and never wraps or opens an arbitrary row.
+    func neighbor(offset: Int, visibleIDs: [ID]) -> ID? {
+        guard let selectedID, let index = visibleIDs.firstIndex(of: selectedID),
+              visibleIDs.indices.contains(index + offset) else { return nil }
+        return visibleIDs[index + offset]
+    }
+
     func isRemoving(_ id: ID) -> Bool { removals.values.contains { $0.ids.contains(id) } }
 
     mutating func beginRemoval(of id: ID, visibleIDs: [ID]) -> UUID? {

@@ -41,56 +41,61 @@ struct ConversationListView: View {
                 Divider()
             }
             // Keep the List (and its first responder) alive across loading and empty states.
-            List(selection: listSelection) {
-                if hub.list.sections.isEmpty {
-                    rows(hub.conversations)
-                } else {
-                    ForEach(hub.list.sections) { section in
-                        Section {
-                            rows(section.conversations)
-                        } header: {
-                            // The loaded count of the last section grows as the list scrolls, so it says there is more.
-                            InboxSectionHeader(section: section, hasMore: section.section == .everythingElse && hub.hasMorePages) {
-                                hub.toggleSection(section.section)
+            ScrollViewReader { proxy in
+                List(selection: listSelection) {
+                    if hub.list.sections.isEmpty {
+                        rows(hub.conversations)
+                    } else {
+                        ForEach(hub.list.sections) { section in
+                            Section {
+                                rows(section.conversations)
+                            } header: {
+                                // The loaded count of the last section grows as the list scrolls, so it says there is more.
+                                InboxSectionHeader(section: section, hasMore: section.section == .everythingElse && hub.hasMorePages) {
+                                    hub.toggleSection(section.section)
+                                }
                             }
                         }
                     }
                 }
-            }
-            .listStyle(.inset)
-            .focused(listIsFocused)
-            .accessibilityIdentifier("conversationList")
-            // The first result batch belongs to a new context even if it arrives later.
-            // Don't slide an entire cached folder or replacement search into the list.
-            .transaction { transaction in
-                if displayedContext != updateContext {
-                    transaction.animation = nil
-                    transaction.disablesAnimations = true
+                .listStyle(.inset)
+                .focused(listIsFocused)
+                .accessibilityIdentifier("conversationList")
+                // The first result batch belongs to a new context even if it arrives later.
+                // Don't slide an entire cached folder or replacement search into the list.
+                .transaction { transaction in
+                    if displayedContext != updateContext {
+                        transaction.animation = nil
+                        transaction.disablesAnimations = true
+                    }
                 }
-            }
-            .onChange(of: hub.conversationKeys, initial: true) {
-                if !hub.conversationKeys.isEmpty { displayedContext = updateContext }
-            }
-            .onDeleteCommand(perform: model.deleteSelection)
-            .contextMenu(forSelectionType: ConversationKey.self) { keys in
-                if keys.count > 1 {
-                    SeveralConversationsContextMenu(model: model, keys: model.conversationKeys.filter(keys.contains))
-                        .disabled(keys.contains(where: model.isRemoving))
-                } else if let key = keys.first {
-                    ConversationContextMenu(model: model, key: key)
-                        .disabled(model.isRemoving(key))
+                .onChange(of: hub.conversationKeys, initial: true) {
+                    if !hub.conversationKeys.isEmpty { displayedContext = updateContext }
                 }
-            } primaryAction: { keys in
-                // Double-click, or Return: a draft or a queued message opens for editing.
-                guard keys.count == 1, let key = keys.first else { return }
-                if hub.canActOnOutboxItem(key) { model.editOutboxItem(key) } else { model.editDraft(key) }
-            }
-            .overlay {
-                if hub.list.isEmpty {
-                    ListPlaceholder(isLoading: hub.isLoadingMailbox || hub.isRestoringCache,
-                                    isSearching: hub.isSearchActive, filtersUnread: hub.filtersUnread, mailbox: hub.mailbox)
-                        .allowsHitTesting(false)
-                        .transition(.opacity)
+                .onDeleteCommand(perform: model.deleteSelection)
+                .contextMenu(forSelectionType: ConversationKey.self) { keys in
+                    if keys.count > 1 {
+                        SeveralConversationsContextMenu(model: model, keys: model.conversationKeys.filter(keys.contains))
+                            .disabled(keys.contains(where: model.isRemoving))
+                    } else if let key = keys.first {
+                        ConversationContextMenu(model: model, key: key)
+                            .disabled(model.isRemoving(key))
+                    }
+                } primaryAction: { keys in
+                    // Double-click, or Return: a draft or a queued message opens for editing.
+                    guard keys.count == 1, let key = keys.first else { return }
+                    if hub.canActOnOutboxItem(key) { model.editOutboxItem(key) } else { model.editDraft(key) }
+                }
+                .overlay {
+                    if hub.list.isEmpty {
+                        ListPlaceholder(isLoading: hub.isLoadingMailbox || hub.isRestoringCache,
+                                        isSearching: hub.isSearchActive, filtersUnread: hub.filtersUnread, mailbox: hub.mailbox)
+                            .allowsHitTesting(false)
+                            .transition(.opacity)
+                    }
+                }
+                .onChange(of: model.conversationNavigationRequest) {
+                    if let key = model.selectedID { proxy.scrollTo(key) }
                 }
             }
             if !hub.list.isEmpty {
