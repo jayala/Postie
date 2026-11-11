@@ -3,6 +3,7 @@ import SwiftUI
 enum SettingsKey {
     static let showsDockBadge = "showsDockBadge"
     static let messageTextSize = "messageTextSize"
+    static let conversationListTextSize = "conversationListTextSize"
     static let notifiesNewMail = "notifiesNewMail"
     static let usesPriorityInbox = "usesPriorityInbox"
     static let collapsedInboxSections = "collapsedInboxSections"
@@ -149,6 +150,7 @@ private struct AccountRow: View {
 private struct GeneralSettings: View {
     @Bindable var hub: MailHub
     @Bindable var service: MailService
+    @AppStorage(SettingsKey.conversationListTextSize) private var listTextSize = ConversationListTextSize.defaultSize
     @Environment(UpdaterModel.self) private var updater
 
     private var notifier: MailNotifier { service.notifier }
@@ -161,6 +163,19 @@ private struct GeneralSettings: View {
             Toggle(isOn: $hub.usesPriorityInbox) {
                 Text("Priority Inbox")
                 Text("Group the Inbox into Important and unread, Starred, and Everything else.")
+            }
+            Section {
+                Picker("Message list text size", selection: $listTextSize) {
+                    ForEach(ConversationListTextSize.range, id: \.self) { size in
+                        if size == ConversationListTextSize.defaultSize {
+                            Text("\(size) pt (Default)").tag(size)
+                        } else {
+                            Text("\(size) pt").tag(size)
+                        }
+                    }
+                }
+            } footer: {
+                Text("Adjusts senders, subjects, previews, and metadata. Message body text size is controlled separately in View > Text Size.")
             }
             Section {
                 Toggle(isOn: $notifier.isEnabled) {
@@ -207,4 +222,12 @@ private struct GeneralSettings: View {
         guard let url = URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension?id=\(id)") else { return }
         NSWorkspace.shared.open(url)
     }
+}
+
+#Preview("General settings") {
+    let hub = MailHub(accounts: AccountStore(vault: MemoryAccountVault()), persistsMail: false, syncsInBackground: false)
+    GeneralSettings(hub: hub, service: MailService(hub: hub, preferences: nil))
+        .environment(UpdaterModel(startingUpdater: false))
+        .scenePadding()
+        .frame(width: 480, height: 560)
 }
