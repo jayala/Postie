@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// The Gmail reader: folders, the conversation list and the open conversation.
@@ -5,6 +6,9 @@ import SwiftUI
 struct GmailInboxView: View {
     @Environment(\.openWindow) private var openWindow
     @Environment(\.undoManager) private var undoManager
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.appearsActive) private var appearsActive
+    @State private var screensAwake = true
     @State private var model: InboxModel
     @FocusState private var listIsFocused: Bool
     @FocusState private var searchIsFocused: Bool
@@ -14,6 +18,8 @@ struct GmailInboxView: View {
     }
 
     private var hub: MailHub { model.hub }
+
+    private var readerIsActive: Bool { scenePhase == .active && appearsActive && screensAwake }
 
     private var mailboxSelection: Binding<MailboxSelection?> {
         Binding(
@@ -33,6 +39,7 @@ struct GmailInboxView: View {
         let id: ConversationKey?
         let mailboxVersion: Int
         let retry: Int
+        let readerIsActive: Bool
     }
 
     var body: some View {
@@ -91,7 +98,23 @@ struct GmailInboxView: View {
             guard !Task.isCancelled else { return }
             await hub.performSearch()
         }
-        .task(id: SelectionRequest(id: model.selectedID, mailboxVersion: hub.mailboxVersion, retry: model.selectionRetry)) {
+        // Invalidate a pending read immediately; activity in a composer/settings window doesn't count.
+        .onChange(of: readerIsActive, initial: true) {
+            model.setReaderActive(readerIsActive)
+        }
+        .onDisappear { model.setReaderActive(false) }
+        // macOS can leave the app active while the display sleeps.
+        .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.screensDidSleepNotification)) { _ in
+            screensAwake = false
+            model.setReaderActive(false)
+        }
+        .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.screensDidWakeNotification)) { _ in
+            screensAwake = true
+        }
+        .task(id: SelectionRequest(id: model.selectedID, mailboxVersion: hub.mailboxVersion,
+                                   retry: model.selectionRetry, readerIsActive: readerIsActive)) {
+            guard !Task.isCancelled else { return }
+            model.setReaderActive(readerIsActive)
             await model.openSelection()
         }
         .onChange(of: model.conversationKeys, initial: true) {

@@ -22,6 +22,8 @@ struct MailUndoTests {
         ])
         let hub = await MailHubTests().makeHub(["a": api])
         let model = InboxModel(hub: hub)
+        // Mail is only read automatically in the window in front, as this one is.
+        model.setReaderActive(true)
         let manager = UndoManager()
         model.undoManager = manager
         return (api, hub, model, manager)

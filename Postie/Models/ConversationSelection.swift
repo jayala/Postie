@@ -3,7 +3,8 @@ import Foundation
 /// Selection belongs to conversations, never to row positions.
 struct ConversationSelection<ID: Hashable> {
     private(set) var selectedIDs: Set<ID> = []
-    private var revision = 0
+    /// Distinguishes separate openings, even when selection leaves and returns to the same ID.
+    private(set) var revision = 0
     private var removals: [UUID: Removal] = [:]
 
     private struct Removal {
