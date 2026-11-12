@@ -94,6 +94,24 @@ struct MailUndoTests {
         #expect(Set(model.selectedKeys) == Set(keys))
     }
 
+    @Test("Marking several read is one step, and undoing it only brings back the ones that were unread")
+    func bulkRead() async throws {
+        let api = HubAPI([
+            MailHubTests.conversation("a1", at: 300, unread: true), MailHubTests.conversation("a2", at: 200),
+            MailHubTests.conversation("a3", at: 100, unread: true)
+        ])
+        let (_, hub, model, manager) = await makeInbox(api)
+        model.toggleRead([key("a1"), key("a2"), key("a3")])
+        try await until { manager.canUndo }
+        #expect(manager.undoActionName == "Mark as Read")
+        #expect(hub.conversations.allSatisfy { !$0.conversation.isUnread })
+
+        manager.undo()
+        #expect(!manager.canUndo)
+        try await until { hub.conversations.filter(\.conversation.isUnread).map(\.key.threadID) == ["a1", "a3"] }
+        #expect(await !api.labelChanges.contains { $0.hasSuffix("a2") })
+    }
+
     @Test("A conversation that was removed unread stays unread when undoing opens it")
     func undoKeepsItUnread() async throws {
         let api = HubAPI([MailHubTests.conversation("a1", at: 300, unread: true)])

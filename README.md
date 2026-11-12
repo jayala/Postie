@@ -32,8 +32,8 @@ subscriptions, AI features, or workspace bloat.
   message you have written asks whether to keep it, and drafts can be edited
   later from the Drafts folder
 - Archive, trash, star, mark as important, and read/unread actions
-- Select several conversations with Shift or Command to archive, trash, or forward
-  them together. They are forwarded in one message
+- Select several conversations with Shift or Command to archive, trash, forward, or
+  mark them as read or unread together. They are forwarded in one message
 - A filter button above the conversation list shows only the folder's unread mail,
   including mail further back than the list has loaded. A conversation you read stays
   until you move on. Choosing another folder or account turns the filter off

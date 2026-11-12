@@ -196,7 +196,7 @@ struct MailHubTests {
         #expect(model.listFocusRequest == 1)
     }
 
-    @Test("With several conversations selected only Archive, Trash and Forward stay available")
+    @Test("With several conversations selected only Archive, Trash, Forward and Mark as Read stay available")
     func severalSelectedActions() async throws {
         let hub = await makeHub(["a": HubAPI([Self.conversation("a1", at: 100), Self.conversation("a2", at: 200)])])
         let model = InboxModel(hub: hub)
@@ -206,7 +206,51 @@ struct MailHubTests {
         #expect(model.selectedCount == 2)
         let actions = model.mailActions
         #expect(actions.reply == nil && actions.replyAll == nil)
-        #expect(actions.archive != nil && actions.trash != nil && actions.forward != nil)
+        #expect(actions.toggleFlag == nil && actions.toggleImportant == nil)
+        #expect(actions.archive != nil && actions.trash != nil && actions.forward != nil && actions.toggleRead != nil)
+    }
+
+    @Test("Several conversations are marked read while any is unread, asking Gmail only about those that change")
+    func markingSeveralRead() async throws {
+        let api = HubAPI([Self.conversation("a1", at: 300, unread: true), Self.conversation("a2", at: 200), Self.conversation("a3", at: 100)])
+        let hub = await makeHub(["a": api])
+        let model = InboxModel(hub: hub)
+        let keys = [ConversationKey(accountID: "a", threadID: "a1"), ConversationKey(accountID: "a", threadID: "a2")]
+        model.updateFromList(Set(keys))
+        #expect(model.mailActions.selectionIsUnread)
+
+        let markRead = try #require(model.mailActions.toggleRead)
+        markRead()
+        while hub.conversations.first?.conversation.isUnread == true { await Task.yield() }
+        #expect(await api.labelChanges == ["remove UNREAD a1"])
+        #expect(!model.mailActions.selectionIsUnread)
+
+        // All read now, so the same item marks both unread.
+        let markUnread = try #require(model.mailActions.toggleRead)
+        markUnread()
+        while !hub.conversations.prefix(2).allSatisfy(\.conversation.isUnread) { await Task.yield() }
+        #expect(await Set(api.labelChanges) == ["remove UNREAD a1", "add UNREAD a1", "add UNREAD a2"])
+        #expect(hub.conversations.last?.conversation.isUnread == false)
+    }
+
+    @Test("Archive acts on the selected search results that are in the Inbox, and leaves the others")
+    func archivingSomeOfSeveral() async throws {
+        let api = HubAPI([Self.conversation("a1", at: 200), Self.conversation("a2", at: 100).setting("INBOX", to: false)])
+        let hub = await makeHub(["a": api])
+        let model = InboxModel(hub: hub)
+        model.searchText = "Subject"
+        #expect(model.applySearch())
+        await hub.performSearch()
+        let keys = [ConversationKey(accountID: "a", threadID: "a1"), ConversationKey(accountID: "a", threadID: "a2")]
+        model.updateFromList(Set(keys))
+        #expect(model.selectedCount == 2)
+        #expect(model.archivable(keys) == [keys[0]])
+
+        let archive = try #require(model.mailActions.archive)
+        archive()
+        while hub.conversations.count > 1 { await Task.yield() }
+        #expect(await api.archived == ["a1"])
+        #expect(hub.conversations.map(\.key.threadID) == ["a2"])
     }
 
     @Test("The Message menu follows the selected conversation's importance, and only works on one conversation")

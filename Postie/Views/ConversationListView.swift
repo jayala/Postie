@@ -208,12 +208,19 @@ private struct SeveralConversationsContextMenu: View {
     private var hub: MailHub { model.hub }
 
     var body: some View {
+        if model.canToggleRead(keys) {
+            let anyUnread = model.anyUnread(keys)
+            Button(anyUnread ? String(localized: "Mark as Read") : String(localized: "Mark as Unread"),
+                   systemImage: anyUnread ? "envelope.open" : "envelope.badge") { model.toggleRead(keys) }
+            Divider()
+        }
         if model.canForward(keys) {
             Button("Forward", systemImage: "arrowshape.turn.up.right") { model.forward(keys) }
             Divider()
         }
-        if keys.allSatisfy(hub.canArchive) {
-            Button("Archive", systemImage: "archivebox") { model.remove(keys, archiving: true) }
+        let archivable = model.archivable(keys)
+        if !archivable.isEmpty {
+            Button("Archive", systemImage: "archivebox") { model.remove(archivable, archiving: true) }
         }
         if keys.allSatisfy(hub.canTrash) {
             Button("Move to Trash", systemImage: "trash", role: .destructive) { model.remove(keys, archiving: false) }

@@ -17,8 +17,10 @@ All notable changes to Postie are documented here. The format is based on
 - A conversation's labels, such as Inbox and the ones you created in Gmail, next
   to its subject.
 - Select several conversations with Shift or Command to archive them, move them to
-  the Trash, or forward them together in one message. Reply and Reply All are
-  disabled while several are selected.
+  the Trash, mark them as read or unread, or forward them together in one message.
+  Like Mail, Mark as Read marks them all read while any of them is unread. In a label
+  or a search, Archive archives the selected ones that are in the Inbox. Reply and
+  Reply All are disabled while several are selected.
 - Undo and Redo (⌘Z and ⇧⌘Z) for archiving, moving to the Trash, flagging and
   marking as read or unread, back through as many steps as you like, like Mail. What
   comes back is selected again. The Edit menu names the step to undo.

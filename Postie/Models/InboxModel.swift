@@ -210,7 +210,26 @@ final class InboxModel {
 
     func toggleRead(_ item: MergedConversation) {
         let unread = !item.conversation.isUnread
-        changeLabel(.setUnread(item.key, unread), named: unread ? String(localized: "Mark as Unread") : String(localized: "Mark as Read"))
+        changeLabel(.setUnread([item.key], unread), named: unread ? String(localized: "Mark as Unread") : String(localized: "Mark as Read"))
+    }
+
+    /// Whether Mark as Read or Unread can change every one of these conversations.
+    func canToggleRead(_ keys: [ConversationKey]) -> Bool {
+        !keys.isEmpty && keys.allSatisfy { hub.canModifyLabels($0) && hub.conversation(for: $0) != nil }
+    }
+
+    /// Like Mail, several conversations are marked read while any of them is unread, and unread once they all are read.
+    func anyUnread(_ keys: [ConversationKey]) -> Bool {
+        keys.contains { hub.conversation(for: $0)?.isUnread == true }
+    }
+
+    /// Marks several conversations read or unread in one step, asking Gmail only about those that change.
+    func toggleRead(_ keys: [ConversationKey]) {
+        guard canToggleRead(keys) else { return }
+        let unread = !anyUnread(keys)
+        let changing = keys.filter { hub.conversation(for: $0)?.isUnread != unread }
+        guard !changing.isEmpty else { return }
+        changeLabel(.setUnread(changing, unread), named: unread ? String(localized: "Mark as Unread") : String(localized: "Mark as Read"))
     }
 
     func toggleStar(_ item: MergedConversation) {
@@ -237,6 +256,11 @@ final class InboxModel {
 
     func remove(_ key: ConversationKey, archiving: Bool) {
         remove([key], archiving: archiving)
+    }
+
+    /// The ones Archive acts on. In a label or a search, some may not be in the Inbox, and only the others can be archived.
+    func archivable(_ keys: [ConversationKey]) -> [ConversationKey] {
+        keys.filter(hub.canArchive)
     }
 
     func remove(_ keys: [ConversationKey], archiving: Bool) {
@@ -286,7 +310,7 @@ final class InboxModel {
     private enum MailChange {
         case remove([RemovedConversation], archiving: Bool)
         case restore([RemovedConversation], archived: Bool)
-        case setUnread(ConversationKey, Bool)
+        case setUnread([ConversationKey], Bool)
         case setStarred(ConversationKey, Bool)
         case setImportant(ConversationKey, Bool)
 
@@ -294,7 +318,7 @@ final class InboxModel {
             switch self {
             case .remove(let items, let archiving): .restore(items, archived: archiving)
             case .restore(let items, let archived): .remove(items, archiving: archived)
-            case .setUnread(let key, let unread): .setUnread(key, !unread)
+            case .setUnread(let keys, let unread): .setUnread(keys, !unread)
             case .setStarred(let key, let starred): .setStarred(key, !starred)
             case .setImportant(let key, let important): .setImportant(key, !important)
             }
@@ -347,9 +371,9 @@ final class InboxModel {
             keys = items.map(\.key)
             succeeded = await hub.restore(items, archived: archived)
             selectRestored(succeeded)
-        case .setUnread(let key, let unread):
-            keys = [key]
-            succeeded = await hub.setUnread(key, unread, refreshing: false) ? [key] : []
+        case .setUnread(let changed, let unread):
+            keys = changed
+            succeeded = await hub.setUnread(changed, unread)
         case .setStarred(let key, let starred):
             keys = [key]
             succeeded = await hub.setStarred(key, starred, refreshing: false) ? [key] : []
@@ -460,28 +484,31 @@ final class InboxModel {
         let openConversation = openConversation
         let selected = selected
         let selectedKeys = selectedKeys
-        let forwardsSeveral = selectedCount > 1
+        let archivable = archivable(selectedKeys)
+        let hasSeveral = selectedCount > 1
         return MailActions(
             currentSelection: hub.selection,
             canShowAllInboxes: hub.canShowAllInboxes,
             select: { [self] in show($0) },
             newMessage: canCompose ? { [self] in newMessage() } : nil,
             refresh: hub.isLoadingMailbox || hub.mailbox == .outbox ? nil : { [self] in refresh() },
-            archive: canRemoveSelection && selectedKeys.allSatisfy(hub.canArchive)
-                ? { [self] in remove(selectedKeys, archiving: true) } : nil,
+            archive: canRemoveSelection && !archivable.isEmpty
+                ? { [self] in remove(archivable, archiving: true) } : nil,
             trash: canRemoveSelection && selectedKeys.allSatisfy(hub.canTrash)
                 ? { [self] in remove(selectedKeys, archiving: false) } : nil,
             editDraft: selectedID.flatMap { key in hub.canEditDraft(key) ? { [self] in editDraft(key) } : nil },
             // Several conversations have no open one to answer, so only Forward stays available.
             reply: openConversation == nil ? nil : { [self] in respond(.reply) },
             replyAll: openConversation == nil ? nil : { [self] in respond(.replyAll) },
-            forward: forwardsSeveral
+            forward: hasSeveral
                 ? (canForward(selectedKeys) ? { [self] in forward(selectedKeys) } : nil)
                 : (openConversation.map { $0.messages.allSatisfy(\.bodyLoaded) } == true ? { [self] in respond(.forward) } : nil),
-            toggleRead: selected.map { item in { [self] in toggleRead(item) } },
+            toggleRead: hasSeveral
+                ? (canToggleRead(selectedKeys) ? { [self] in toggleRead(selectedKeys) } : nil)
+                : selected.map { item in { [self] in toggleRead(item) } },
             toggleFlag: selected.map { item in { [self] in toggleStar(item) } },
             toggleImportant: selected.map { item in { [self] in toggleImportant(item) } },
-            selectionIsUnread: selected?.conversation.isUnread ?? false,
+            selectionIsUnread: hasSeveral ? anyUnread(selectedKeys) : selected?.conversation.isUnread ?? false,
             selectionIsFlagged: selected?.conversation.isStarred ?? false,
             selectionIsImportant: selected?.conversation.isImportant ?? false
         )

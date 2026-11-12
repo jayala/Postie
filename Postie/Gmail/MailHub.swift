@@ -974,6 +974,13 @@ final class MailHub {
         return true
     }
 
+    /// Marks conversations read or unread, leaving the follow-up to `refresh(after:succeeded:)`. Returns the ones Gmail changed.
+    func setUnread(_ keys: [ConversationKey], _ unread: Bool) async -> [ConversationKey] {
+        await inBatches(keys) { key in
+            await self.setUnread(key, unread, refreshing: false) ? key : nil
+        }.compactMap(\.self)
+    }
+
     @discardableResult
     func setStarred(_ key: ConversationKey, _ starred: Bool, refreshing: Bool = true) async -> Bool {
         guard let reader = session(for: key.accountID)?.reader,
