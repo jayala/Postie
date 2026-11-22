@@ -450,8 +450,8 @@ final class GmailReaderStore {
         }
     }
 
-    /// In a label, whether a conversation can be archived depends on the conversation: see `MailHub.canArchive`.
-    var canArchive: Bool { (mailbox == .inbox || mailbox.isLabel) && mutator != nil }
+    /// In a label or Starred, whether a conversation can be archived depends on the conversation: see `MailHub.canArchive`.
+    var canArchive: Bool { (mailbox == .inbox || mailbox.holdsMailFromAnyFolder) && mutator != nil }
     var canTrash: Bool { ![.trash, .outbox].contains(mailbox) && mutator != nil }
     var canSearch: Bool { searcher != nil }
 
@@ -468,7 +468,7 @@ final class GmailReaderStore {
     func archive(_ id: String, fromAnyFolder: Bool = false, refreshing: Bool = true, onRemoved: () -> Void = {}) async -> Bool {
         guard fromAnyFolder ? canModifyLabels : canArchive, let mutator else { return false }
         // Leaving the Inbox doesn't take a conversation out of its labels.
-        return await mutate(id, refreshing: refreshing, keepingRowWithout: mailbox.isLabel ? "INBOX" : nil, onRemoved: onRemoved) {
+        return await mutate(id, refreshing: refreshing, keepingRowWithout: mailbox.holdsMailFromAnyFolder ? "INBOX" : nil, onRemoved: onRemoved) {
             try await mutator.archive(threadID: id)
         }
     }

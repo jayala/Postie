@@ -58,6 +58,16 @@ struct ConversationSelectionTests {
         #expect(selection.selectedID == "older")
     }
 
+    @Test("Without opening the next one, removing the open conversation leaves nothing selected")
+    func removalReturnsToList() throws {
+        var selection = ConversationSelection<String>()
+        selection.select("open")
+        let tokenRequest = selection.beginRemoval(of: ["open"], visibleIDs: ["new", "open", "older"], opensNext: false)
+        let token = try #require(tokenRequest)
+        selection.rowRemoved(token, visibleIDs: ["new", "older"])
+        #expect(selection.selectedIDs.isEmpty)
+    }
+
     @Test("Vanished neighbors are skipped; newer mail is the fallback")
     func missingNeighbors() throws {
         var selection = ConversationSelection<String>()

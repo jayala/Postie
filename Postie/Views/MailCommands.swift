@@ -31,6 +31,7 @@ struct MailCommands: Commands {
     @FocusedValue(\.mailActions) private var actions
     let updater: UpdaterModel
     @AppStorage(SettingsKey.messageTextSize) private var messageTextSize = MessageTextSize.defaultSize
+    @AppStorage(SettingsKey.readingPaneLayout) private var readingPaneLayout = ReadingPaneLayout.defaultLayout
 
     /// ⌘1…⌘9 pick the first nine folders; any further folder simply has no shortcut.
     private static func shortcut(forMailboxAt index: Int) -> KeyboardShortcut? {
@@ -51,6 +52,9 @@ struct MailCommands: Commands {
         }
 
         CommandGroup(after: .toolbar) {
+            Menu("Reading Pane") {
+                ReadingPaneLayoutPicker(layout: $readingPaneLayout)
+            }
             Menu("Text Size") {
                 Button("Bigger") { messageTextSize = MessageTextSize.clamped(messageTextSize) + 1 }
                     .keyboardShortcut("+", modifiers: .command)
@@ -114,7 +118,7 @@ struct MailCommands: Commands {
             Button(actions?.selectionIsUnread == true ? String(localized: "Mark as Read") : String(localized: "Mark as Unread")) { actions?.toggleRead?() }
                 .keyboardShortcut("u", modifiers: [.command, .shift])
                 .disabled(actions?.toggleRead == nil)
-            Button(actions?.selectionIsFlagged == true ? String(localized: "Unflag") : String(localized: "Flag")) { actions?.toggleFlag?() }
+            Button(actions?.selectionIsFlagged == true ? String(localized: "Unstar") : String(localized: "Star")) { actions?.toggleFlag?() }
                 .keyboardShortcut("l", modifiers: [.command, .shift])
                 .disabled(actions?.toggleFlag == nil)
             Button(actions?.selectionIsImportant == true ? String(localized: "Mark as Not Important") : String(localized: "Mark as Important")) { actions?.toggleImportant?() }

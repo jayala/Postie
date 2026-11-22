@@ -12,8 +12,8 @@ All notable changes to Postie are documented here. The format is based on
   sidebar. Click it to switch accounts or add another one.
 - All Inboxes above Inbox when more than one account is connected, showing every
   account's inbox together.
-- Press Esc to close the open conversation. In the search field, Esc still clears
-  the search.
+- Press Esc or ⌘← to close the open conversation. In the search field, Esc still
+  clears the search and ⌘← still moves to the start of the line.
 - A conversation's labels, such as Inbox and the ones you created in Gmail, next
   to its subject.
 - Select several conversations with Shift or Command to archive them, move them to
@@ -21,13 +21,15 @@ All notable changes to Postie are documented here. The format is based on
   Like Mail, Mark as Read marks them all read while any of them is unread. In a label
   or a search, Archive archives the selected ones that are in the Inbox. Reply and
   Reply All are disabled while several are selected.
-- Undo and Redo (⌘Z and ⇧⌘Z) for archiving, moving to the Trash, flagging and
+- Undo and Redo (⌘Z and ⇧⌘Z) for archiving, moving to the Trash, starring and
   marking as read or unread, back through as many steps as you like, like Mail. What
   comes back is selected again. The Edit menu names the step to undo.
 - Priority Inbox, an option in Settings > General. It groups the Inbox into Important
   and unread, Starred, and Everything else, including older mail further down the
-  Inbox. Click a heading to collapse its section. A conversation stays in its section
-  while it is selected, so reading or unflagging it doesn't move it away.
+  Inbox. Click a heading to collapse its section. A conversation you open stays in its
+  section after you move on, much as in Gmail, so reading or unstarring mail doesn't
+  rearrange the list under you. The sections catch up when you switch to another window
+  or app, choose Get New Mail, or leave the Inbox.
 - Your Gmail labels in the sidebar, nested as they are in Gmail, with how many
   conversations are unread. Click one to see its mail. Labels you set to show only
   when unread, or to hide, are under More. Archiving in a label takes the conversation
@@ -46,9 +48,20 @@ All notable changes to Postie are documented here. The format is based on
   While Postie is the app in front, they go straight to Notification Center. Turn
   them off in Settings > General.
 - Open Postie at login, an option in Settings > General.
+- Starred in the sidebar, below Inbox, with every starred conversation. As in a label,
+  archiving one takes it out of the Inbox and leaves it in Starred. The Go menu
+  shortcuts for the folders after it each move up one number.
+- A reading pane button next to the filter button, and View > Reading Pane, to choose
+  where conversations open, as in Gmail: Vertical Split (to the right of the list, as
+  before), Horizontal Split (below the list), or No Split, where a conversation takes
+  the list's place until you click the back button or press Esc or ⌘←. Postie
+  remembers your choice.
 
 ### Changed
 
+- Archiving or deleting the open conversation now goes back to the list, as Gmail
+  does by default, instead of opening the next conversation. To keep opening the
+  next one, choose it under After archiving or deleting in Settings > General.
 - Inbox and the other folders now show only the selected account instead of every
   account merged. Search and new messages follow the account on screen.
 - Opening Postie or a folder no longer opens the first conversation and marks it
@@ -60,6 +73,10 @@ All notable changes to Postie are documented here. The format is based on
   asks Gmail whether anything has changed every 30 seconds, which takes one small
   request, and only syncs when something has.
 - View > Text Size > Actual Size has no shortcut, as ⌘0 opens All Inboxes.
+- Flag and Unflag are now Star and Unstar, the name Gmail uses, in the Message menu,
+  the conversation's context menu, and the Edit menu's Undo.
+- Click More in the sidebar's labels to open or close it. Its chevron now has the
+  color of the sidebar's icons instead of a faint gray that was hard to see in dark mode.
 
 ### Fixed
 

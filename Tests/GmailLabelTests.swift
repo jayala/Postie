@@ -178,6 +178,15 @@ struct GmailLabelTests {
         #expect(conversation(["Label_1", "TRASH"], ["Label_1"]).belongs(to: .label("Label_1")))
     }
 
+    @Test("Starred holds starred conversations from any folder but the Spam and the Trash")
+    func belongsToStarred() {
+        #expect(conversation(["INBOX", "STARRED"]).belongs(to: .starred))
+        #expect(conversation(["SENT"], ["STARRED"]).belongs(to: .starred))
+        #expect(!conversation(["INBOX"]).belongs(to: .starred))
+        #expect(!conversation(["STARRED", "TRASH"]).belongs(to: .starred))
+        #expect(Mailbox(rawValue: Mailbox.starred.rawValue) == .starred)
+    }
+
     @Test("Unread counts are only asked for when mail has changed, and never for hidden labels")
     @MainActor
     func countRequests() async throws {
@@ -371,15 +380,19 @@ struct LabelFolderHubTests {
         #expect(hub.openLabelIsGone)
     }
 
-    @Test("Archiving in a label keeps the conversation there, without the Inbox, and it stays selected")
-    func archiving() async {
+    @Test("Archiving in a label or Starred keeps the conversation there, without the Inbox, and it stays selected",
+          arguments: [Mailbox.label("Label_1"), .starred])
+    func archiving(folder: Mailbox) async {
         let (hub, a, _) = await twoAccounts()
         let model = InboxModel(hub: hub)
-        a.addInboxThread(withLabel: "Label_1")
-        hub.show(.folder(.label("Label_1")))
+        let label = folder == .starred ? "STARRED" : "Label_1"
+        a.addInboxThread(withLabel: label)
+        a.addUnread(to: label)
+        hub.show(.folder(folder))
         await hub.refresh()
         let inInbox = ConversationKey(accountID: "a", threadID: "labelled-inbox")
-        let notInInbox = ConversationKey(accountID: "a", threadID: "labelled-1")
+        let notInInbox = ConversationKey(accountID: "a", threadID: "labelled-2")
+        #expect(hub.conversationKeys.contains(notInInbox))
         #expect(hub.canArchive(inInbox))
         #expect(!hub.canArchive(notInInbox))
 

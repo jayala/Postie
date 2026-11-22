@@ -72,11 +72,14 @@ struct ConversationSelection<ID: Hashable> {
     }
 
     /// Each operation owns its snapshot; another removal cannot overwrite or clear it.
-    mutating func beginRemoval(of ids: Set<ID>, visibleIDs: [ID]) -> UUID? {
+    /// Without `opensNext`, nothing is selected once the rows are gone, and the list is back on its own.
+    mutating func beginRemoval(of ids: Set<ID>, visibleIDs: [ID], opensNext: Bool = true) -> UUID? {
         guard ids.allSatisfy({ !isRemoving($0) && visibleIDs.contains($0) }),
               let last = visibleIDs.lastIndex(where: { ids.contains($0) }) else { return nil }
         let token = UUID()
-        let neighbors = (Array(visibleIDs.dropFirst(last + 1)) + visibleIDs.prefix(last).reversed()).filter { !ids.contains($0) }
+        let neighbors = opensNext
+            ? (Array(visibleIDs.dropFirst(last + 1)) + visibleIDs.prefix(last).reversed()).filter { !ids.contains($0) }
+            : []
         removals[token] = Removal(ids: ids, revision: revision, neighbors: neighbors)
         return token
     }

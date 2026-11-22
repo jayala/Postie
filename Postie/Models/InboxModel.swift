@@ -51,6 +51,8 @@ final class InboxModel {
         guard isReaderActive != active else { return }
         isReaderActive = active
         readerActivityRevision += 1
+        // Nobody is reading the list, so the mail read so far can go where it belongs without moving it from under them.
+        if !active { hub.settleSections() }
     }
 
     // MARK: Selection
@@ -135,11 +137,10 @@ final class InboxModel {
 
     /// Selects the conversation a notification opened, once the list has caught up with it.
     func revealIfListed() {
-        guard let key = pendingReveal, let item = hub.list[key] else { return }
+        guard let key = pendingReveal, hub.list[key] != nil else { return }
         if !conversationKeys.contains(key) {
             // Loaded but out of sight in a collapsed Priority Inbox section, which has to open for it.
-            let section = InboxSection(item.conversation)
-            guard hub.collapsedSections.contains(section) else { return }
+            guard let section = hub.section(of: key), hub.collapsedSections.contains(section) else { return }
             hub.toggleSection(section)
         }
         pendingReveal = nil
@@ -204,7 +205,9 @@ final class InboxModel {
 
     // MARK: Loading
 
+    /// Get New Mail. Like refreshing Gmail, it also puts the mail read so far in the Priority Inbox section it now fits.
     func refresh() {
+        hub.settleSections()
         Task { await hub.refresh() }
     }
 
@@ -289,7 +292,7 @@ final class InboxModel {
 
     func toggleStar(_ item: MergedConversation) {
         let starred = !item.conversation.isStarred
-        changeLabel(.setStarred(item.key, starred), named: starred ? String(localized: "Flag") : String(localized: "Unflag"))
+        changeLabel(.setStarred(item.key, starred), named: starred ? String(localized: "Star") : String(localized: "Unstar"))
     }
 
     func toggleImportant(_ item: MergedConversation) {
@@ -323,7 +326,8 @@ final class InboxModel {
     }
 
     func remove(_ keys: [ConversationKey], archiving: Bool) {
-        guard let token = selection.beginRemoval(of: Set(keys), visibleIDs: conversationKeys) else { return }
+        guard let token = selection.beginRemoval(of: Set(keys), visibleIDs: conversationKeys,
+                                                 opensNext: hub.opensNextAfterRemoval) else { return }
         let snapshots = hub.canUndoRemoval(archiving: archiving) ? hub.removedConversations(keys) : []
         Task {
             let removed = await removeRows(keys, archiving: archiving, token: token)
@@ -425,7 +429,7 @@ final class InboxModel {
         switch change {
         case .remove(let items, let archiving):
             keys = items.map(\.key)
-            let token = selection.beginRemoval(of: Set(keys), visibleIDs: conversationKeys)
+            let token = selection.beginRemoval(of: Set(keys), visibleIDs: conversationKeys, opensNext: hub.opensNextAfterRemoval)
             succeeded = await removeRows(keys, archiving: archiving, anyFolder: true, token: token)
         case .restore(let items, let archived):
             keys = items.map(\.key)

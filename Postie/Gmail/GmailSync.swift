@@ -305,6 +305,7 @@ extension GmailConversation {
         case .archive:
             labelIDs.isDisjoint(with: ["INBOX", "DRAFT", "SPAM", "TRASH"])
                 && messages.contains { $0.labelIDs.isDisjoint(with: ["INBOX", "SENT", "DRAFT", "SPAM", "TRASH"]) }
+        case .starred: belongs(to: .label("STARRED"))
         case .label(let id):
             // Like Gmail's own list of a label, which leaves out what is in the Spam and the Trash.
             messages.contains { $0.labelIDs.contains(id) && $0.labelIDs.isDisjoint(with: ["SPAM", "TRASH"]) }

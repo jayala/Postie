@@ -16,11 +16,12 @@ subscriptions, AI features, or workspace bloat.
   forwards and archive/trash actions always go through the account the conversation
   belongs to. New messages come from the account on screen, and in All Inboxes from
   the default account chosen in Settings
-- Inbox, Drafts, Outbox, Sent, Archive, Junk, and Trash
+- Inbox, Starred, Drafts, Outbox, Sent, Archive, Junk, and Trash
 - Priority Inbox, optional in Settings: groups the Inbox into Important and unread,
   Starred, and Everything else, each of which can be collapsed. Older important and
-  starred mail shows up there without scrolling to it. This is Postie's own setting,
-  as Gmail doesn't let apps read yours
+  starred mail shows up there without scrolling to it. Mail you read stays in its
+  section until you switch away, get new mail, or leave the Inbox, so the list doesn't
+  move under you. This is Postie's own setting, as Gmail doesn't let apps read yours
 - Your Gmail labels in the sidebar, nested as in Gmail with their unread counts, for
   the selected account, including in All Inboxes. Labels Gmail is set not to list are
   under More
@@ -38,13 +39,15 @@ subscriptions, AI features, or workspace bloat.
 - Persistent Outbox: outgoing messages and attachments are saved on this Mac,
   with background delivery and retries while Postie is running. Queued mail
   survives quitting; failed messages can be retried, edited, or deleted
-- Archive, trash, star, mark as important, and read/unread actions
+- Archive, trash, star, mark as important, and read/unread actions. After archiving
+  or deleting the open conversation, Postie goes back to the list, as Gmail does by
+  default. Settings > General can open the next conversation instead
 - Select several conversations with Shift or Command to archive, trash, forward, or
   mark them as read or unread together. They are forwarded in one message
 - A filter button above the conversation list shows only the folder's unread mail,
   including mail further back than the list has loaded. A conversation you read stays
   until you move on. Choosing another folder or account turns the filter off
-- Undo and Redo (⌘Z and ⇧⌘Z) for archive, trash, flag, important, and read/unread, several
+- Undo and Redo (⌘Z and ⇧⌘Z) for archive, trash, star, important, and read/unread, several
   steps back, until Postie quits. Deleting a draft or a queued message can't be undone
 - Search as you type, powered by Gmail, in the account on screen or across all
   accounts from All Inboxes: search the current folder or All Mail, with Gmail operators such as `from:` and `has:attachment`.
@@ -63,6 +66,10 @@ subscriptions, AI features, or workspace bloat.
   Without Calendar access, Postie shows status only from the invitation and replies
   sent during the current app session. “Reply sent” confirms Gmail accepted the
   reply, not that the organizer’s calendar processed it
+- Reading pane layouts, as in Gmail, from the button next to the filter or View >
+  Reading Pane: Vertical Split (conversation to the right of the list), Horizontal
+  Split (below the list), or No Split, where a conversation replaces the list until
+  you go back with the back button, Esc or ⌘←
 - Postie remembers how wide you make the sidebar and the conversation list.
   Double-click a divider to put that column back to its default width
 - Local SQLite cache for previously loaded mail
@@ -89,12 +96,12 @@ subscriptions, AI features, or workspace bloat.
 | Forward | ⇧⌘F |
 | Edit draft | ⌘E |
 | Mark as read / unread | ⇧⌘U |
-| Flag / unflag | ⇧⌘L |
+| Star / unstar | ⇧⌘L |
 | Mark as important / not important | ⇧⌘I |
 | Archive | ⌃⌘A |
 | Move to Trash | ⌘⌫ |
 | Undo / redo | ⌘Z / ⇧⌘Z |
-| Close the open conversation | Esc |
+| Close the open conversation | Esc or ⌘← |
 | All Inboxes | ⌘0 |
 | Bigger / smaller message-body text | ⌘+ / ⌘− |
 

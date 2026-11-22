@@ -181,6 +181,7 @@ actor GmailAPI: GmailSyncReading, GmailSearching, GmailPriorityLoading, GmailMut
         var terms: [String] = []
         switch mailbox {
         case .inbox: query.append(URLQueryItem(name: "labelIds", value: "INBOX"))
+        case .starred: query.append(URLQueryItem(name: "labelIds", value: "STARRED"))
         case .drafts: query.append(URLQueryItem(name: "labelIds", value: "DRAFT"))
         case .sent: query.append(URLQueryItem(name: "labelIds", value: "SENT"))
         case .junk, .trash:

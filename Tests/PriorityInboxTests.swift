@@ -188,8 +188,8 @@ struct PriorityInboxTests {
 
     // MARK: Keeping a conversation in place
 
-    @Test("Reading a conversation keeps it in its section until another one is selected")
-    func keptWhileSelected() async {
+    @Test("A conversation you read stays in its section after you move on, so the list doesn't shift")
+    func keptAfterMovingOn() async {
         let (_, hub) = await makeHub()
         let model = InboxModel(hub: hub)
         model.select(key("vip"))
@@ -199,11 +199,28 @@ struct PriorityInboxTests {
         #expect(model.selectedID == key("vip"))
 
         model.select(key("other"))
+        #expect(sections(hub)[.importantAndUnread] == ["vip"])
+        #expect(hub.conversationKeys.map(\.threadID) == ["vip", "star", "newest", "other"])
+
+        model.deselect()
+        #expect(sections(hub)[.importantAndUnread] == ["vip"])
+
+        model.refresh()
         #expect(sections(hub)[.importantAndUnread] == nil)
         #expect(sections(hub)[.everythingElse] == ["newest", "other", "vip"])
     }
 
-    @Test("Unflagging keeps a conversation in Starred until it is deselected")
+    @Test("Gmail answering after you moved on doesn't move it either, as when it's marked read automatically")
+    func changedAfterMovingOn() async {
+        let (_, hub) = await makeHub()
+        let model = InboxModel(hub: hub)
+        model.select(key("vip"))
+        model.select(key("other"))
+        _ = await hub.setUnread(key("vip"), false)
+        #expect(sections(hub)[.importantAndUnread] == ["vip"])
+    }
+
+    @Test("Unflagging keeps a conversation in Starred until the list settles")
     func unflagged() async {
         let (_, hub) = await makeHub()
         let model = InboxModel(hub: hub)
@@ -212,11 +229,13 @@ struct PriorityInboxTests {
         #expect(sections(hub)[.starred] == ["star"])
 
         model.deselect()
+        #expect(sections(hub)[.starred] == ["star"])
+        hub.settleSections()
         #expect(sections(hub)[.starred] == nil)
         #expect(sections(hub)[.everythingElse]?.contains("star") == true)
     }
 
-    @Test("Marking as not important keeps a conversation in its section until it is deselected")
+    @Test("Marking as not important keeps a conversation in its section until the list settles")
     func markedNotImportant() async {
         let (_, hub) = await makeHub()
         let model = InboxModel(hub: hub)
@@ -225,8 +244,86 @@ struct PriorityInboxTests {
         #expect(sections(hub)[.importantAndUnread] == ["vip"])
 
         model.deselect()
+        #expect(sections(hub)[.importantAndUnread] == ["vip"])
+        hub.settleSections()
         #expect(sections(hub)[.importantAndUnread] == nil)
         #expect(sections(hub)[.everythingElse]?.contains("vip") == true)
+    }
+
+    @Test("The selected conversation stays put when the list settles")
+    func selectedStaysWhenSettling() async {
+        let (_, hub) = await makeHub()
+        let model = InboxModel(hub: hub)
+        model.select(key("vip"))
+        _ = await hub.setUnread(key("vip"), false)
+        model.setReaderActive(true)
+        model.setReaderActive(false)
+        #expect(sections(hub)[.importantAndUnread] == ["vip"])
+        #expect(model.selectedID == key("vip"))
+    }
+
+    /// Ways of looking away from the list, after which the read mail can go where it fits.
+    enum Settling: CaseIterable {
+        case switchingAway, gettingNewMail, choosingAnotherFolder, turningItOffAndOn
+    }
+
+    @Test("The list settles when you look away from it, get new mail, or leave the Inbox", arguments: Settling.allCases)
+    func settles(by settling: Settling) async {
+        let (_, hub) = await makeHub()
+        let model = InboxModel(hub: hub)
+        model.setReaderActive(true)
+        model.select(key("vip"))
+        _ = await hub.setUnread(key("vip"), false)
+        model.select(key("other"))
+        #expect(sections(hub)[.importantAndUnread] == ["vip"])
+
+        switch settling {
+        case .switchingAway: model.setReaderActive(false)
+        case .gettingNewMail: model.refresh()
+        case .choosingAnotherFolder:
+            model.show(.folder(.sent))
+            model.show(.folder(.inbox))
+            await hub.refresh()
+        case .turningItOffAndOn:
+            hub.usesPriorityInbox = false
+            hub.usesPriorityInbox = true
+        }
+        #expect(sections(hub)[.importantAndUnread] == nil)
+        #expect(sections(hub)[.everythingElse]?.contains("vip") == true)
+    }
+
+    @Test("Choosing another account settles the list too")
+    func settlesForAnotherAccount() async {
+        let hub = await MailHubTests().makeHub([
+            "a": HubAPI([important("vip", at: 100), starred("star", at: 200), MailHubTests.conversation("other", at: 300)]),
+            "b": HubAPI([])
+        ])
+        hub.usesPriorityInbox = true
+        let model = InboxModel(hub: hub)
+        model.select(key("vip"))
+        _ = await hub.setUnread(key("vip"), false)
+        model.select(key("other"))
+        #expect(sections(hub)[.importantAndUnread] == ["vip"])
+
+        model.selectAccount("a")
+        #expect(hub.selection == .folder(.inbox))
+        #expect(sections(hub)[.importantAndUnread] == nil)
+        #expect(sections(hub)[.everythingElse] == ["other", "vip"])
+    }
+
+    @Test("A notification opens the collapsed section a read conversation is kept in, not the one it fits now")
+    func revealInHeldSection() async {
+        let (_, hub) = await makeHub()
+        let model = InboxModel(hub: hub)
+        model.select(key("vip"))
+        _ = await hub.setUnread(key("vip"), false)
+        model.select(key("other"))
+        hub.toggleSection(.importantAndUnread)
+        #expect(!model.conversationKeys.contains(key("vip")))
+
+        model.reveal(MailHub.RevealRequest(accountID: "a", threadID: "vip"))
+        #expect(!hub.collapsedSections.contains(.importantAndUnread))
+        #expect(model.selectedID == key("vip"))
     }
 
     @Test("Marking an unread conversation as important moves it to Important and unread")

@@ -2,6 +2,8 @@ import Foundation
 
 nonisolated enum Mailbox: Hashable, CaseIterable, Identifiable, RawRepresentable, Sendable {
     case inbox
+    /// Gmail's STARRED label. Like a label, it holds conversations from any folder.
+    case starred
     case drafts
     case outbox
     case sent
@@ -12,7 +14,7 @@ nonisolated enum Mailbox: Hashable, CaseIterable, Identifiable, RawRepresentable
     case label(String)
 
     /// The folders every account has, in the order they are shown. Labels differ per account.
-    static let allCases: [Mailbox] = [.inbox, .drafts, .outbox, .sent, .archive, .junk, .trash]
+    static let allCases: [Mailbox] = [.inbox, .starred, .drafts, .outbox, .sent, .archive, .junk, .trash]
 
     private static let labelPrefix = "label:"
 
@@ -22,10 +24,15 @@ nonisolated enum Mailbox: Hashable, CaseIterable, Identifiable, RawRepresentable
         if case .label = self { true } else { false }
     }
 
+    /// Whether the folder holds conversations from anywhere rather than being where they are: archiving one keeps it here,
+    /// and only those in the Inbox can be archived.
+    var holdsMailFromAnyFolder: Bool { isLabel || self == .starred }
+
     /// The raw value is persisted and must stay stable; the title is what people read.
     var rawValue: String {
         switch self {
         case .inbox: "Inbox"
+        case .starred: "Starred"
         case .drafts: "Drafts"
         case .outbox: "Outbox"
         case .sent: "Sent"
@@ -51,6 +58,7 @@ nonisolated enum Mailbox: Hashable, CaseIterable, Identifiable, RawRepresentable
     var title: String {
         switch self {
         case .inbox: String(localized: "Inbox", comment: "Mailbox name")
+        case .starred: String(localized: "Starred", comment: "Mailbox name")
         case .drafts: String(localized: "Drafts", comment: "Mailbox name")
         case .outbox: String(localized: "Outbox", comment: "Mailbox name")
         case .sent: String(localized: "Sent", comment: "Mailbox name")
@@ -64,6 +72,7 @@ nonisolated enum Mailbox: Hashable, CaseIterable, Identifiable, RawRepresentable
     var symbol: String {
         switch self {
         case .inbox: "tray"
+        case .starred: "star"
         case .sent: "paperplane"
         case .drafts: "doc"
         case .outbox: "tray.and.arrow.up"

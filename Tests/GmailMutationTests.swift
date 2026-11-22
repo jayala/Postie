@@ -141,6 +141,7 @@ struct GmailMutationTests {
     func availability() {
         let api = MutatingStubAPI([])
         #expect(GmailReaderStore(api: api, mailbox: .inbox).canArchive)
+        #expect(GmailReaderStore(api: api, mailbox: .starred).canArchive)
         #expect(!GmailReaderStore(api: api, mailbox: .sent).canArchive)
         #expect(GmailReaderStore(api: api, mailbox: .sent).canTrash)
         #expect(!GmailReaderStore(api: api, mailbox: .trash).canTrash)

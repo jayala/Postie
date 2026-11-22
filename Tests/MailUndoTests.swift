@@ -37,7 +37,8 @@ struct MailUndoTests {
         try await until { manager.canUndo }
         #expect(manager.undoActionName == "Archive")
         #expect(threadIDs(hub) == ["a1", "a3"])
-        #expect(model.selectedID == key("a3"))
+        // As in Gmail by default, archiving goes back to the list rather than opening the next conversation.
+        #expect(model.selectedID == nil)
 
         manager.undo()
         try await until { threadIDs(hub).contains("a2") && model.selectedID == key("a2") }
@@ -47,9 +48,25 @@ struct MailUndoTests {
 
         manager.redo()
         try await until { !threadIDs(hub).contains("a2") }
-        try await until { model.selectedID == key("a3") }
+        #expect(model.selectedID == nil)
         #expect(await api.archived == ["a2", "a2"])
         #expect(manager.undoActionName == "Archive")
+    }
+
+    @Test("With Open the next conversation chosen, archiving and Redo open the next one")
+    func archiveOpensNext() async throws {
+        let (_, hub, model, manager) = await makeInbox()
+        hub.opensNextAfterRemoval = true
+        model.select(key("a2"))
+        model.remove(key("a2"), archiving: true)
+        try await until { manager.canUndo }
+        #expect(model.selectedID == key("a3"))
+
+        manager.undo()
+        try await until { model.selectedID == key("a2") }
+        manager.redo()
+        try await until { !threadIDs(hub).contains("a2") }
+        try await until { model.selectedID == key("a3") }
     }
 
     @Test("Undo goes back through several actions, newest first")
@@ -133,7 +150,7 @@ struct MailUndoTests {
         let item = try #require(hub.conversations.first)
 
         model.toggleStar(item)
-        try await until { manager.undoActionName == "Flag" }
+        try await until { manager.undoActionName == "Star" }
         #expect(hub.conversations.first?.conversation.isStarred == true)
         model.toggleRead(try #require(hub.conversations.first))
         try await until { manager.undoActionName == "Mark as Unread" }

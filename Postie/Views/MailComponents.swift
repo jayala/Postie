@@ -161,7 +161,8 @@ struct MailboxSidebar: View {
                 Section("Labels") {
                     ForEach(labels.roots) { LabelRow(node: $0, expansion: labelGroupExpansion) }
                     if !labels.more.isEmpty {
-                        DisclosureGroup("More", isExpanded: $showsMoreLabels) {
+                        moreLabelsRow
+                        if showsMoreLabels {
                             ForEach(labels.more) { LabelRow(node: $0, expansion: labelGroupExpansion) }
                         }
                     }
@@ -169,6 +170,22 @@ struct MailboxSidebar: View {
             }
         }
         .listStyle(.sidebar)
+    }
+
+    /// Opens or closes the labels Gmail doesn't list, like Gmail's own More. The chevron takes the icon's place,
+    /// where it has the icons' color: the system disclosure triangle is too faint in a dark sidebar.
+    private var moreLabelsRow: some View {
+        Label {
+            Text("More")
+        } icon: {
+            Image(systemName: "chevron.right")
+                .rotationEffect(.degrees(showsMoreLabels ? 90 : 0))
+        }
+        .contentShape(.rect)
+        .onTapGesture { withAnimation(.snappy) { showsMoreLabels.toggle() } }
+        .accessibilityAddTraits(.isButton)
+        .accessibilityValue(showsMoreLabels ? String(localized: "Expanded") : String(localized: "Collapsed"))
+        .accessibilityAction { showsMoreLabels.toggle() }
     }
 }
 

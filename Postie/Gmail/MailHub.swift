@@ -191,10 +191,16 @@ final class MailHub {
     var usesPriorityInbox: Bool {
         didSet {
             guard usesPriorityInbox != oldValue else { return }
+            settleSections()
             preferences?.set(usesPriorityInbox, forKey: SettingsKey.usesPriorityInbox)
             for session in sessions { session.reader.loadsPriorityThreads = usesPriorityInbox }
             if usesPriorityInbox { Task { await refresh() } }
         }
+    }
+    /// After archiving or deleting the open conversation, whether the next one opens. Without it, as in Gmail by
+    /// default, nothing is selected and the list is back, which is what No Split shows.
+    var opensNextAfterRemoval: Bool {
+        didSet { preferences?.set(opensNextAfterRemoval, forKey: SettingsKey.opensNextAfterRemoval) }
     }
     /// Whether the list leaves out read mail. It applies to the folder on screen, so choosing another one turns it off.
     var showsOnlyUnread = false {
@@ -210,7 +216,8 @@ final class MailHub {
     private var labelOwnerID: String?
     /// The nested labels collapsed in the sidebar, by account. Anything new starts out expanded.
     private var collapsedLabelGroups: [String: [String]]
-    /// The section each selected conversation was in when selected. Reading or flagging it won't move it from under you.
+    /// The section each conversation opened in this folder was in when first selected. Reading or flagging one doesn't move
+    /// it from under you, during or after reading it, until `settleSections` runs while the list isn't being looked at.
     private var heldSections: [ConversationKey: InboxSection] = [:]
     /// The selected conversations, which stay in the list when the unread filter would leave them out, so reading one doesn't close it.
     private var heldConversations: Set<ConversationKey> = []
@@ -245,6 +252,7 @@ final class MailHub {
         self.syncsInBackground = syncsInBackground
         self.preferences = preferences
         usesPriorityInbox = preferences?.bool(forKey: SettingsKey.usesPriorityInbox) ?? false
+        opensNextAfterRemoval = preferences?.bool(forKey: SettingsKey.opensNextAfterRemoval) ?? false
         collapsedSections = Set((preferences?.stringArray(forKey: SettingsKey.collapsedInboxSections) ?? []).compactMap(InboxSection.init(rawValue:)))
         collapsedLabelGroups = preferences?.dictionary(forKey: SettingsKey.collapsedLabelGroups) as? [String: [String]] ?? [:]
         for column in MailColumn.allCases {
@@ -401,6 +409,7 @@ final class MailHub {
 
     func show(_ selection: MailboxSelection) {
         showsOnlyUnread = false
+        settleSections()
         switch selection {
         case .allInboxes:
             wantsAllInboxes = true
@@ -414,6 +423,7 @@ final class MailHub {
     /// Shows the account's mail: the folder that is open, or its Inbox when coming from All Inboxes or a label.
     func selectAccount(_ id: String) {
         showsOnlyUnread = false
+        settleSections()
         accounts.selectAccount(id)
         wantsAllInboxes = false
         if mailbox.isLabel { changeMailbox(.inbox) }
@@ -551,13 +561,27 @@ final class MailHub {
         }
     }
 
-    /// Keeps the selected conversations in the list and in their sections until they are no longer selected.
+    /// Keeps the selected conversations in the list until they are no longer selected, and in their sections for longer:
+    /// moving on to the next one doesn't rearrange the list, much as in Gmail.
     func holdInPlace(_ keys: Set<ConversationKey>) {
         if keys != heldConversations { heldConversations = keys }
-        let held = keys.reduce(into: [ConversationKey: InboxSection]()) { result, key in
-            result[key] = heldSections[key] ?? folderList[key].map { InboxSection($0.conversation) }
+        var held = heldSections
+        for key in keys where held[key] == nil {
+            held[key] = folderList[key].map { InboxSection($0.conversation) }
         }
         if held != heldSections { heldSections = held }
+    }
+
+    /// Lets the conversations opened earlier move to the sections they fit now. The selected ones stay put.
+    /// For moments when the list moving is no surprise: leaving the folder, getting new mail, or looking away from the window.
+    func settleSections() {
+        let settled = heldSections.filter { heldConversations.contains($0.key) }
+        if settled.count != heldSections.count { heldSections = settled }
+    }
+
+    /// The section a conversation is shown in. One kept in place may fit another by now.
+    func section(of key: ConversationKey) -> InboxSection? {
+        list[key].map { heldSections[key] ?? InboxSection($0.conversation) }
     }
 
     /// Collapses a section, or expands it again. Its conversations leave the selection, as they can't be seen.
@@ -904,8 +928,8 @@ final class MailHub {
         if isSearchActive {
             return searchResult(key)?.labelIDs.contains("INBOX") == true && canModifyLabels(key)
         }
-        // A label holds conversations from anywhere, and not all of them are in the Inbox to be archived.
-        if mailbox.isLabel {
+        // A label or Starred holds conversations from anywhere, and not all of them are in the Inbox to be archived.
+        if mailbox.holdsMailFromAnyFolder {
             return folderList[key]?.conversation.labelIDs.contains("INBOX") == true && canModifyLabels(key)
         }
         return mailbox != .drafts && mailbox != .outbox && session(for: key.accountID)?.reader.canArchive ?? false

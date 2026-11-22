@@ -12,6 +12,9 @@ struct GmailInboxView: View {
     @State private var model: InboxModel
     @FocusState private var listIsFocused: Bool
     @FocusState private var searchIsFocused: Bool
+    @AppStorage(SettingsKey.readingPaneLayout) private var layout = ReadingPaneLayout.defaultLayout
+    /// The conversation last open, for the list to scroll back to when it returns in place of the conversation.
+    @State private var lastOpenedKey: ConversationKey?
 
     init(hub: MailHub) {
         _model = State(initialValue: InboxModel(hub: hub))
@@ -42,30 +45,80 @@ struct GmailInboxView: View {
         let readerIsActive: Bool
     }
 
+    private var sidebar: some View {
+        MailboxSidebar(
+            selection: mailboxSelection, showsAllInboxes: hub.canShowAllInboxes, allInboxesBadge: hub.unreadInboxCount ?? 0,
+            badges: [.inbox: hub.selectedUnreadInboxCount ?? 0, .drafts: hub.draftCount, .outbox: hub.outboxCount],
+            labels: hub.labelTree,
+            labelGroupExpansion: { path in
+                Binding(get: { hub.isLabelGroupExpanded(path) }, set: { hub.setLabelGroup(path, expanded: $0) })
+            }
+        )
+        .safeAreaBar(edge: .bottom) { AccountSwitcher(model: model) }
+        .navigationSplitViewColumnWidth(
+            min: MailColumn.sidebar.widthRange.lowerBound, ideal: MailColumn.sidebar.defaultWidth, max: MailColumn.sidebar.widthRange.upperBound
+        )
+    }
+
+    private var conversationList: some View {
+        ConversationListView(model: model, listIsFocused: $listIsFocused)
+    }
+
+    /// Without a split, one open conversation takes the list's place. Several selected ones keep the list on screen.
+    private var showsConversationInPlaceOfList: Bool {
+        model.selectedID != nil && model.selectedCount == 1
+    }
+
+    /// The list and the conversation when they share the detail column: one above the other, or one at a time.
+    @ViewBuilder private var readingColumn: some View {
+        if layout == .horizontal {
+            VSplitView {
+                conversationList
+                    .frame(minHeight: 140, idealHeight: 300)
+                ConversationDetailView(model: model)
+                    .frame(minHeight: 220)
+            }
+        } else if showsConversationInPlaceOfList {
+            ConversationDetailView(model: model)
+                .toolbar {
+                    ToolbarItem(placement: .navigation) {
+                        Button(action: model.deselect) {
+                            Label("Back to List", systemImage: "chevron.backward")
+                        }
+                        .help("Back to List (Esc or ⌘←)")
+                    }
+                }
+        } else {
+            ConversationListView(model: model, listIsFocused: $listIsFocused, revealOnAppear: lastOpenedKey)
+        }
+    }
+
     var body: some View {
         let actions = model.mailActions
-        NavigationSplitView {
-            MailboxSidebar(
-                selection: mailboxSelection, showsAllInboxes: hub.canShowAllInboxes, allInboxesBadge: hub.unreadInboxCount ?? 0,
-                badges: [.inbox: hub.selectedUnreadInboxCount ?? 0, .drafts: hub.draftCount, .outbox: hub.outboxCount],
-                labels: hub.labelTree,
-                labelGroupExpansion: { path in
-                    Binding(get: { hub.isLabelGroupExpanded(path) }, set: { hub.setLabelGroup(path, expanded: $0) })
+        Group {
+            if layout == .vertical {
+                NavigationSplitView {
+                    sidebar
+                } content: {
+                    conversationList
+                        .background { ColumnWidthKeeper(hub: hub) }
+                        .navigationSplitViewColumnWidth(
+                            min: MailColumn.list.widthRange.lowerBound, ideal: MailColumn.list.defaultWidth, max: MailColumn.list.widthRange.upperBound
+                        )
+                } detail: {
+                    ConversationDetailView(model: model)
+                        .navigationSplitViewColumnWidth(min: 420, ideal: 620)
                 }
-            )
-            .safeAreaBar(edge: .bottom) { AccountSwitcher(model: model) }
-            .navigationSplitViewColumnWidth(
-                min: MailColumn.sidebar.widthRange.lowerBound, ideal: MailColumn.sidebar.defaultWidth, max: MailColumn.sidebar.widthRange.upperBound
-            )
-        } content: {
-            ConversationListView(model: model, listIsFocused: $listIsFocused)
-                .background { ColumnWidthKeeper(hub: hub) }
-                .navigationSplitViewColumnWidth(
-                    min: MailColumn.list.widthRange.lowerBound, ideal: MailColumn.list.defaultWidth, max: MailColumn.list.widthRange.upperBound
-                )
-        } detail: {
-            ConversationDetailView(model: model)
-                .navigationSplitViewColumnWidth(min: 420, ideal: 620)
+            } else {
+                // The list and the conversation share the one column, so only the sidebar's width is kept.
+                NavigationSplitView {
+                    sidebar
+                        .background { ColumnWidthKeeper(hub: hub, columns: [.sidebar]) }
+                } detail: {
+                    readingColumn
+                        .navigationSplitViewColumnWidth(min: 420, ideal: 900)
+                }
+            }
         }
         .navigationTitle(hub.selectionTitle)
         .onChange(of: hub.openLabelIsGone) { _, isGone in
@@ -75,10 +128,14 @@ struct GmailInboxView: View {
         .searchFocused($searchIsFocused)
         .toolbar { MailToolbar(actions: actions) }
         .focusedSceneValue(\.mailActions, actions)
-        // Esc closes the open conversation, except in the search field, where it clears the search.
+        // Esc and ⌘← close the open conversation, except in the search field, where Esc clears the search
+        // and ⌘← moves to the start of the line.
         .background {
             Button("Close", action: model.deselect)
                 .keyboardShortcut(.cancelAction).hidden()
+                .disabled(searchIsFocused)
+            Button("Close", action: model.deselect)
+                .keyboardShortcut(.leftArrow, modifiers: .command).hidden()
                 .disabled(searchIsFocused)
         }
         // Each message gets its own window, so the mailbox stays usable while writing.
@@ -137,6 +194,9 @@ struct GmailInboxView: View {
         }
         .onChange(of: undoManager, initial: true) { _, manager in
             model.undoManager = manager
+        }
+        .onChange(of: model.selectedID) { _, key in
+            if let key { lastOpenedKey = key }
         }
         .onChange(of: model.listFocusRequest) {
             if !searchIsFocused, model.composer == nil { listIsFocused = true }

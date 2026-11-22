@@ -6,6 +6,8 @@ struct ConversationListView: View {
     @AppStorage(SettingsKey.conversationListTextSize) private var textSize = ConversationListTextSize.defaultSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var listIsFocused: FocusState<Bool>.Binding
+    /// Scrolled to and focused when the list appears, as it comes back in place of this conversation.
+    var revealOnAppear: ConversationKey?
 
     private var hub: MailHub { model.hub }
 
@@ -92,6 +94,14 @@ struct ConversationListView: View {
                 .onChange(of: model.conversationNavigationRequest) {
                     if let key = model.selectedID { proxy.scrollTo(key) }
                 }
+                .onAppear {
+                    guard let key = revealOnAppear else { return }
+                    // After the table has its rows.
+                    DispatchQueue.main.async {
+                        if hub.list[key] != nil { proxy.scrollTo(key, anchor: .center) }
+                        listIsFocused.wrappedValue = true
+                    }
+                }
             }
             if !hub.list.isEmpty {
                 Divider()
@@ -110,6 +120,10 @@ struct ConversationListView: View {
             // The only placement that stays over this column. The others join the detail column's buttons.
             ToolbarItem(placement: .navigation) {
                 UnreadFilterToggle(hub: hub)
+            }
+            ToolbarSpacer(.fixed, placement: .navigation)
+            ToolbarItem(placement: .navigation) {
+                ReadingPaneLayoutMenu()
             }
         }
     }
@@ -203,7 +217,7 @@ private struct ConversationContextMenu: View {
             let item = MergedConversation(key: key, conversation: conversation)
             Button(conversation.isUnread ? String(localized: "Mark as Read") : String(localized: "Mark as Unread"),
                    systemImage: conversation.isUnread ? "envelope.open" : "envelope.badge") { model.toggleRead(item) }
-            Button(conversation.isStarred ? String(localized: "Unflag") : String(localized: "Flag"),
+            Button(conversation.isStarred ? String(localized: "Unstar") : String(localized: "Star"),
                    systemImage: conversation.isStarred ? "star.slash" : "star") { model.toggleStar(item) }
             Button(conversation.isImportant ? String(localized: "Mark as Not Important") : String(localized: "Mark as Important"),
                    systemImage: "exclamationmark.circle") { model.toggleImportant(item) }

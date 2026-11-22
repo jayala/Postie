@@ -49,8 +49,8 @@ struct GmailAPITests {
         #expect(nextQuery.contains(URLQueryItem(name: "pageToken", value: "next +/=")))
     }
 
-    @Test("System folders use Gmail labels, with Spam and Trash explicitly included", arguments: [
-        (Mailbox.inbox, "INBOX"), (.drafts, "DRAFT"), (.sent, "SENT"), (.junk, "SPAM"), (.trash, "TRASH")
+    @Test("System folders and Starred use Gmail labels, with Spam and Trash explicitly included", arguments: [
+        (Mailbox.inbox, "INBOX"), (.starred, "STARRED"), (.drafts, "DRAFT"), (.sent, "SENT"), (.junk, "SPAM"), (.trash, "TRASH")
     ])
     func folderQueries(input: (Mailbox, String)) async throws {
         let transport = FixtureTransport()

@@ -135,6 +135,9 @@
     "Adjusts senders, subjects, previews, and metadata. Message body text size is controlled separately in View > Text Size." : {
 
     },
+    "After archiving or deleting" : {
+
+    },
     "All Inboxes" : {
       "comment" : "Mailbox name"
     },
@@ -149,6 +152,18 @@
     },
     "and %lld more" : {
       "comment" : "VoiceOver: the number of attachments besides the first one"
+    },
+    "Back to List" : {
+
+    },
+    "Back to List (Esc or ⌘←)" : {
+
+    },
+    "Go back to the list" : {
+
+    },
+    "Horizontal Split" : {
+
     },
     "me" : {
 
@@ -323,9 +338,6 @@
     },
     "Expands the message" : {
 
-    },
-    "Flag" : {
-      "comment" : "Menu item: flag (star) a conversation"
     },
     "Forward" : {
       "comment" : "Composer title"
@@ -538,6 +550,9 @@
     "No response found in your primary Google Calendar." : {
 
     },
+    "No Split" : {
+
+    },
     "Not responded" : {
 
     },
@@ -572,6 +587,9 @@
 
     },
     "Open System Settings…" : {
+
+    },
+    "Open the next conversation" : {
 
     },
     "Opening mailbox…" : {
@@ -611,6 +629,12 @@
 
     },
     "Previous Conversation (⌥⌘↑)" : {
+
+    },
+    "Reading Pane" : {
+
+    },
+    "Reading Pane: %@" : {
 
     },
     "RSVP is unavailable for this invitation from this account. Use the original email for more options." : {
@@ -766,6 +790,9 @@
     "Smaller" : {
 
     },
+    "Star" : {
+      "comment" : "Menu item: star a conversation"
+    },
     "Star conversation" : {
 
     },
@@ -868,14 +895,14 @@
     "Underline" : {
 
     },
-    "Unflag" : {
-
-    },
     "Unknown sender" : {
 
     },
     "Unread" : {
       "comment" : "Swipe action label (mark as unread) and VoiceOver state of an unread conversation"
+    },
+    "Unstar" : {
+      "comment" : "Menu item: remove a conversation's star"
     },
     "Untitled event" : {
 
@@ -884,6 +911,9 @@
 
     },
     "Updating…" : {
+
+    },
+    "Vertical Split" : {
 
     },
     "Waiting to be sent" : {

@@ -116,6 +116,7 @@ final class SelectionRegressionMail: GmailSyncReading, GmailMutating, GmailSearc
             let labels = conversation.labelIDs
             switch mailbox {
             case .inbox: return labels.contains("INBOX") && !labels.contains("TRASH")
+            case .starred: return labels.contains("STARRED") && !labels.contains("TRASH")
             case .archive: return !labels.contains("INBOX") && !labels.contains("TRASH")
             case .trash: return labels.contains("TRASH")
             case .label(let id): return labels.contains(id) && !labels.contains("TRASH")

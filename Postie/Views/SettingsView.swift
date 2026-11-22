@@ -10,6 +10,8 @@ enum SettingsKey {
     static let collapsedLabelGroups = "collapsedLabelGroups"
     static let sidebarWidth = "sidebarWidth"
     static let conversationListWidth = "conversationListWidth"
+    static let readingPaneLayout = "readingPaneLayout"
+    static let opensNextAfterRemoval = "opensNextAfterRemoval"
 }
 
 struct SettingsView: View {
@@ -163,6 +165,10 @@ private struct GeneralSettings: View {
             Toggle(isOn: $hub.usesPriorityInbox) {
                 Text("Priority Inbox")
                 Text("Group the Inbox into Important and unread, Starred, and Everything else.")
+            }
+            Picker("After archiving or deleting", selection: $hub.opensNextAfterRemoval) {
+                Text("Go back to the list").tag(false)
+                Text("Open the next conversation").tag(true)
             }
             Section {
                 Picker("Message list text size", selection: $listTextSize) {
