@@ -21,6 +21,12 @@ All notable changes to Postie are documented here. The format is based on
   Like Mail, Mark as Read marks them all read while any of them is unread. In a label
   or a search, Archive archives the selected ones that are in the Inbox. Reply and
   Reply All are disabled while several are selected.
+- A checkbox under the unread dot when the pointer is over a conversation, as in
+  Gmail. Checking conversations doesn't open them. Shift-click a checkbox to check
+  or uncheck every conversation from the last one you clicked. While any are
+  checked or several are selected, a bar under the list shows how many, with
+  Select All and buttons to archive, trash, mark read or unread, forward, or
+  deselect them all.
 - Undo and Redo (⌘Z and ⇧⌘Z) for archiving, moving to the Trash, starring and
   marking as read or unread, back through as many steps as you like, like Mail. What
   comes back is selected again. The Edit menu names the step to undo.

@@ -289,4 +289,74 @@ struct ConversationSelectionTests {
         selection.finishRemoval(token, removed: true, visibleIDs: [b])
         #expect(selection.selectedID == b)
     }
+
+    @Test("Checking a conversation's box opens nothing, even when it is the only one checked")
+    func checkingOpensNothing() {
+        var selection = ConversationSelection<String>()
+        selection.select("open")
+        #expect(selection.markedIDs.isEmpty)
+        selection.toggleMark("b")
+        #expect(selection.selectedIDs == ["b"])
+        #expect(selection.selectedID == nil)
+        selection.toggleMark("c")
+        #expect(selection.markedIDs == ["b", "c"])
+        selection.toggleMark("b")
+        #expect(selection.markedIDs == ["c"])
+        #expect(selection.selectedID == nil)
+        selection.toggleMark("c")
+        #expect(selection.selectedIDs.isEmpty)
+        #expect(!selection.isMarking)
+    }
+
+    @Test("Shift-clicking a checkbox checks everything from the last one clicked")
+    func shiftCheckRange() {
+        let visible = ["a", "b", "c", "d", "e", "f"]
+        var selection = ConversationSelection<String>()
+        selection.toggleMark("b")
+        selection.extendMark(to: "e", visibleIDs: visible)
+        #expect(selection.markedIDs == ["b", "c", "d", "e"])
+        // Upwards from the new anchor, and unchecking takes the clicked box's new state.
+        selection.extendMark(to: "d", visibleIDs: visible)
+        #expect(selection.markedIDs == ["b", "c"])
+        selection.extendMark(to: "a", visibleIDs: visible)
+        #expect(selection.markedIDs == ["a", "b", "c", "d"])
+    }
+
+    @Test("Shift-clicking a checkbox after opening a conversation checks from that one")
+    func shiftCheckFromOpenConversation() {
+        var selection = ConversationSelection<String>()
+        selection.updateFromList(["b"], visibleIDs: ["a", "b", "c", "d"])
+        selection.extendMark(to: "d", visibleIDs: ["a", "b", "c", "d"])
+        #expect(selection.markedIDs == ["b", "c", "d"])
+        #expect(selection.selectedID == nil)
+    }
+
+    @Test("Clicking the row of the only checked conversation opens it")
+    func clickingCheckedRowOpensIt() {
+        var selection = ConversationSelection<String>()
+        selection.toggleMark("b")
+        selection.updateFromList(["b"], visibleIDs: ["a", "b"])
+        #expect(selection.selectedID == "b")
+        #expect(selection.markedIDs.isEmpty)
+    }
+
+    @Test("Checked conversations that go away stay checked without opening the last one")
+    func backgroundRemovalKeepsMarking() {
+        var selection = ConversationSelection<String>()
+        selection.mark(["a", "b"])
+        selection.reconcile(with: ["b", "c"])
+        #expect(selection.markedIDs == ["b"])
+        #expect(selection.selectedID == nil)
+    }
+
+    @Test("Archiving checked conversations opens nothing")
+    func archivingCheckedOpensNothing() throws {
+        var selection = ConversationSelection<String>()
+        selection.mark(["a", "b"])
+        let tokenRequest = selection.beginRemoval(of: ["a", "b"], visibleIDs: ["a", "b", "c"], opensNext: false)
+        let token = try #require(tokenRequest)
+        selection.finishRemoval(token, removed: true, visibleIDs: ["c"])
+        #expect(selection.selectedIDs.isEmpty)
+        #expect(!selection.isMarking)
+    }
 }

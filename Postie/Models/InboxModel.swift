@@ -76,6 +76,29 @@ final class InboxModel {
         selection.select(key)
     }
 
+    /// Whether conversations are checked with their checkboxes rather than selected in the list. None of them is open.
+    var isMarking: Bool { selection.isMarking }
+
+    /// Whether a conversation's checkbox shows as checked.
+    func isMarked(_ key: ConversationKey) -> Bool { selection.markedIDs.contains(key) }
+
+    /// A click on a conversation's checkbox. With Shift, every conversation from the last one clicked to this one
+    /// takes the same state, as in Gmail.
+    func toggleMark(_ key: ConversationKey, extending: Bool) {
+        if extending { selection.extendMark(to: key, visibleIDs: conversationKeys) } else { selection.toggleMark(key) }
+    }
+
+    /// Checks every conversation in the list as it is loaded so far.
+    func markAll() {
+        selection.mark(Set(conversationKeys))
+    }
+
+    /// Whether every conversation in the list is checked.
+    var allMarked: Bool {
+        let marked = selection.markedIDs
+        return !conversationKeys.isEmpty && conversationKeys.allSatisfy(marked.contains)
+    }
+
     /// Closes the open conversation. The list takes keyboard focus, which may have been inside the message.
     func deselect() {
         guard !selection.selectedIDs.isEmpty else { return }
@@ -326,8 +349,9 @@ final class InboxModel {
     }
 
     func remove(_ keys: [ConversationKey], archiving: Bool) {
+        // Like Gmail, nothing opens after checked conversations go.
         guard let token = selection.beginRemoval(of: Set(keys), visibleIDs: conversationKeys,
-                                                 opensNext: hub.opensNextAfterRemoval) else { return }
+                                                 opensNext: hub.opensNextAfterRemoval && !selection.isMarking) else { return }
         let snapshots = hub.canUndoRemoval(archiving: archiving) ? hub.removedConversations(keys) : []
         Task {
             let removed = await removeRows(keys, archiving: archiving, token: token)
@@ -549,7 +573,7 @@ final class InboxModel {
         let selected = selected
         let selectedKeys = selectedKeys
         let archivable = archivable(selectedKeys)
-        let hasSeveral = selectedCount > 1
+        let hasSeveral = selectedCount > 1 || isMarking
         return MailActions(
             currentSelection: hub.selection,
             canShowAllInboxes: hub.canShowAllInboxes,

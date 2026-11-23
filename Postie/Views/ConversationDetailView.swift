@@ -10,7 +10,7 @@ struct ConversationDetailView: View {
     var body: some View {
         let key = model.selectedID
         ZStack {
-            if model.selectedCount > 1 {
+            if model.selectedCount > 1 || model.isMarking {
                 SelectionStackView(
                     threads: model.selectedKeys.prefix(SelectionStackView.tilts.count).compactMap {
                         hub.conversation(for: $0)?.presentation(includingBodies: false, mailbox: hub.mailbox)
@@ -87,7 +87,7 @@ private struct SelectionStackView: View {
             }
             .frame(maxWidth: 460)
             .accessibilityHidden(true)
-            Text("\(count) Conversations Selected")
+            Text(count == 1 ? String(localized: "1 Conversation Selected") : String(localized: "\(count) Conversations Selected"))
                 .font(.title3.weight(.medium))
                 .foregroundStyle(.secondary)
         }

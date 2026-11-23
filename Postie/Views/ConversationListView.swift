@@ -103,6 +103,11 @@ struct ConversationListView: View {
                     }
                 }
             }
+            // Below the list, so that rows don't move under the pointer as the first one is checked.
+            if model.isMarking || model.selectedCount > 1 {
+                Divider()
+                BatchActionBar(model: model)
+            }
             if !hub.list.isEmpty {
                 Divider()
                 MailboxStatusView(count: hub.loadedCount, isLoading: hub.isLoadingMailbox,
@@ -129,9 +134,13 @@ struct ConversationListView: View {
     }
 
     private func rows(_ conversations: [MergedConversation]) -> some View {
-        ForEach(conversations) { item in
+        let showsAllCheckboxes = model.isMarking || model.selectedCount > 1
+        return ForEach(conversations) { item in
             MailThreadRow(thread: item.conversation.presentation(includingBodies: false, mailbox: hub.mailbox),
-                          isPending: model.isRemoving(item.key), textSize: textSize)
+                          isPending: model.isRemoving(item.key), textSize: textSize,
+                          checkbox: RowCheckbox(isMarked: model.isMarked(item.key), isAlwaysVisible: showsAllCheckboxes) { extending in
+                              model.toggleMark(item.key, extending: extending)
+                          })
                 .tag(item.key)
                 .listRowInsets(EdgeInsets(top: 0, leading: 8, bottom: 0, trailing: 8))
                 .listRowSeparator(.hidden)
@@ -163,6 +172,53 @@ struct ConversationListView: View {
                 }
                 .onAppear { model.conversationAppeared(item.key) }
         }
+    }
+}
+
+/// Under the list while several conversations are checked or selected: how many, and what can be done to all of them.
+private struct BatchActionBar: View {
+    let model: InboxModel
+
+    var body: some View {
+        let actions = model.mailActions
+        HStack(spacing: 4) {
+            Toggle(isOn: Binding(get: { model.allMarked }, set: { if $0 { model.markAll() } else { model.deselect() } })) {
+                Text("Select All")
+            }
+            .toggleStyle(.checkbox)
+            .labelsHidden()
+            .help(model.allMarked ? String(localized: "Deselect All") : String(localized: "Select All"))
+            Text("\(model.selectedCount) selected")
+                .font(.subheadline.weight(.semibold))
+                .monospacedDigit()
+                .lineLimit(1)
+                .padding(.leading, 4)
+            Spacer(minLength: 8)
+            Group {
+                Button { actions.archive?() } label: { Label("Archive", systemImage: "archivebox") }
+                    .disabled(actions.archive == nil)
+                    .help("Archive")
+                Button { actions.trash?() } label: { Label("Move to Trash", systemImage: "trash") }
+                    .disabled(actions.trash == nil)
+                    .help("Move to Trash")
+                Button { actions.toggleRead?() } label: {
+                    Label(actions.selectionIsUnread ? String(localized: "Mark as Read") : String(localized: "Mark as Unread"),
+                          systemImage: actions.selectionIsUnread ? "envelope.open" : "envelope.badge")
+                }
+                .disabled(actions.toggleRead == nil)
+                .help(actions.selectionIsUnread ? String(localized: "Mark as Read") : String(localized: "Mark as Unread"))
+                Button { actions.forward?() } label: { Label("Forward", systemImage: "arrowshape.turn.up.right") }
+                    .disabled(actions.forward == nil)
+                    .help("Forward")
+                Button(action: model.deselect) { Label("Deselect All", systemImage: "xmark") }
+                    .help("Deselect All (Esc)")
+            }
+            .labelStyle(.iconOnly)
+            .buttonStyle(.borderless)
+        }
+        .padding(.leading, 14)
+        .padding(.trailing, 10)
+        .padding(.vertical, 6)
     }
 }
 

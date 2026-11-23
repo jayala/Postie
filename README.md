@@ -43,7 +43,10 @@ subscriptions, AI features, or workspace bloat.
   or deleting the open conversation, Postie goes back to the list, as Gmail does by
   default. Settings > General can open the next conversation instead
 - Select several conversations with Shift or Command to archive, trash, forward, or
-  mark them as read or unread together. They are forwarded in one message
+  mark them as read or unread together. They are forwarded in one message. Or check
+  them with the checkbox that appears under the unread dot when the pointer is over a
+  conversation, without opening any; Shift-click a checkbox to check a whole range.
+  A bar under the list then counts them and offers Select All and those actions
 - A filter button above the conversation list shows only the folder's unread mail,
   including mail further back than the list has loaded. A conversation you read stays
   until you move on. Choosing another folder or account turns the filter off

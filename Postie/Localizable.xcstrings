@@ -4,8 +4,14 @@
     "" : {
 
     },
+    "%lld selected" : {
+      "comment" : "How many conversations are checked or selected, in the bar under the conversation list"
+    },
     "& %lld more" : {
       "comment" : "After the first attachment's name in the message list"
+    },
+    "1 Conversation Selected" : {
+
     },
     "A newer invitation is available" : {
 
@@ -157,6 +163,18 @@
 
     },
     "Back to List (Esc or ⌘←)" : {
+
+    },
+    "Check" : {
+      "comment" : "VoiceOver action that checks a conversation's checkbox in the list"
+    },
+    "Check to act on several conversations. Shift-click to check a range." : {
+
+    },
+    "Deselect All" : {
+
+    },
+    "Deselect All (Esc)" : {
 
     },
     "Go back to the list" : {
@@ -739,6 +757,9 @@
     "Select a conversation to read it." : {
 
     },
+    "Select All" : {
+
+    },
     "Selected" : {
       "comment" : "Spoken by VoiceOver for the checkmark next to the selected account"
     },
@@ -891,6 +912,9 @@
     },
     "Unable to save this message for offline reading." : {
 
+    },
+    "Uncheck" : {
+      "comment" : "VoiceOver action that unchecks a conversation's checkbox in the list"
     },
     "Underline" : {
 

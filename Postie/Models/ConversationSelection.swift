@@ -5,6 +5,10 @@ struct ConversationSelection<ID: Hashable> {
     private(set) var selectedIDs: Set<ID> = []
     /// Distinguishes separate openings, even when selection leaves and returns to the same ID.
     private(set) var revision = 0
+    /// Conversations checked with their checkboxes, like Gmail: none of them opens, even when only one is checked.
+    private(set) var isMarking = false
+    /// Where a Shift-click on a checkbox extends from: the last one checked, or the conversation opened last.
+    private(set) var anchor: ID?
     private var removals: [UUID: Removal] = [:]
 
     private struct Removal {
@@ -15,15 +19,54 @@ struct ConversationSelection<ID: Hashable> {
     }
 
     /// The conversation to open. Several selected conversations stay closed.
-    var selectedID: ID? { selectedIDs.count == 1 ? selectedIDs.first : nil }
+    var selectedID: ID? { !isMarking && selectedIDs.count == 1 ? selectedIDs.first : nil }
 
     mutating func select(_ id: ID?) {
         select(id.map { [$0] } ?? [])
     }
 
     mutating func select(_ ids: Set<ID>) {
-        guard selectedIDs != ids else { return }
+        guard selectedIDs != ids || isMarking else { return }
         selectedIDs = ids
+        isMarking = false
+        if ids.count == 1 { anchor = ids.first } else if ids.isEmpty { anchor = nil }
+        revision += 1
+    }
+
+    /// The checkboxes that show as checked. An open conversation is selected but not checked.
+    var markedIDs: Set<ID> { isMarking || selectedIDs.count > 1 ? selectedIDs : [] }
+
+    /// Checks or unchecks one conversation's checkbox. Checking one closes the open conversation, as it isn't checked.
+    mutating func toggleMark(_ id: ID) {
+        mark(markedIDs.symmetricDifference([id]), anchor: id)
+    }
+
+    /// Shift-click on a checkbox: everything from the anchor to `id`, in the visible order, takes the state
+    /// the clicked checkbox is changing to. Without an anchor in the list, it only toggles `id`.
+    mutating func extendMark(to id: ID, visibleIDs: [ID]) {
+        guard let anchor, anchor != id, let start = visibleIDs.firstIndex(of: anchor),
+              let end = visibleIDs.firstIndex(of: id) else {
+            toggleMark(id)
+            return
+        }
+        let range = Set(visibleIDs[min(start, end)...max(start, end)])
+        let marked = markedIDs
+        mark(marked.contains(id) ? marked.subtracting(range) : marked.union(range), anchor: id)
+    }
+
+    /// Checks these conversations, and only these, without opening any.
+    mutating func mark(_ ids: Set<ID>, anchor: ID? = nil) {
+        guard !ids.isEmpty else {
+            select(nil)
+            return
+        }
+        guard selectedIDs != ids || !isMarking else {
+            self.anchor = anchor ?? self.anchor
+            return
+        }
+        selectedIDs = ids
+        isMarking = true
+        self.anchor = anchor ?? self.anchor
         revision += 1
     }
 
@@ -43,7 +86,8 @@ struct ConversationSelection<ID: Hashable> {
             select(removal.neighbors.first { visible.contains($0) })
         } else {
             // Background disappearance only drops those rows; only an explicit removal advances selection.
-            select(selectedIDs.subtracting(missing))
+            let remaining = selectedIDs.subtracting(missing)
+            if isMarking { mark(remaining) } else { select(remaining) }
         }
     }
 
@@ -53,6 +97,9 @@ struct ConversationSelection<ID: Hashable> {
         let stillVisible = selectedIDs.intersection(visible)
         if ids == stillVisible, stillVisible != selectedIDs {
             reconcile(with: visibleIDs)
+        } else if isMarking, ids == selectedIDs, ids.count == 1 {
+            // Clicking the only checked conversation's row opens it.
+            select(ids)
         } else if ids != selectedIDs, ids.isEmpty || !ids.isDisjoint(with: visible) {
             select(ids.intersection(visible))
         }
@@ -99,6 +146,7 @@ struct ConversationSelection<ID: Hashable> {
         guard removed, selectedIDs == removal.ids, revision == removal.revision else { return false }
         let refused = removal.ids.intersection(visibleIDs)
         if refused.isEmpty { select(removal.neighbors.first { visibleIDs.contains($0) }) }
+        else if isMarking { mark(refused) }
         else { select(refused) }
         return true
     }

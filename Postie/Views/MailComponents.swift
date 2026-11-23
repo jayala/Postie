@@ -14,10 +14,21 @@ struct SenderAvatar: View {
     }
 }
 
+/// A conversation row's checkbox, for checking several conversations without opening them.
+struct RowCheckbox {
+    var isMarked: Bool
+    /// Shown without the pointer over the row, while any conversation is checked.
+    var isAlwaysVisible: Bool
+    /// Called with whether Shift was held.
+    var toggle: (_ extending: Bool) -> Void
+}
+
 struct MailThreadRow: View {
     let thread: MailThread
     var isPending = false
     var textSize = ConversationListTextSize.defaultSize
+    var checkbox: RowCheckbox?
+    @State private var isHovered = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     // .increased while the row sits on the accent-colored selection background.
     @Environment(\.backgroundProminence) private var prominence
@@ -34,12 +45,18 @@ struct MailThreadRow: View {
 
     var body: some View {
         if let message = thread.latestMessage {
-            HStack(alignment: .top, spacing: 7) {
-                Circle()
-                    .fill(thread.isUnread ? (prominence == .increased ? Color.white : Color.accentColor) : .clear)
-                    .frame(width: 5, height: 5)
-                    .padding(.top, 5)
-                    .accessibilityHidden(true)
+            HStack(alignment: .top, spacing: checkbox == nil ? 7 : 5) {
+                VStack(spacing: 6) {
+                    Circle()
+                        .fill(thread.isUnread ? (prominence == .increased ? Color.white : Color.accentColor) : .clear)
+                        .frame(width: 5, height: 5)
+                        .padding(.top, 5)
+                        .accessibilityHidden(true)
+                    if let checkbox {
+                        checkboxView(checkbox)
+                    }
+                }
+                .frame(width: checkbox == nil ? 5 : 16)
                 VStack(alignment: .leading, spacing: 2) {
                     headerLayout {
                         Text(thread.mailbox == .sent || thread.mailbox == .outbox ? message.recipient : message.senderName)
@@ -101,10 +118,37 @@ struct MailThreadRow: View {
             .background(NativeListRowSizing())
             .opacity(isPending ? 0.65 : 1)
             .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: isPending)
+            .contentShape(.rect)
+            .onHover { isHovered = $0 }
             .accessibilityElement(children: .combine)
             .accessibilityLabel(accessibilityDescription(of: message))
             .accessibilityValue(isPending ? String(localized: "Updating…") : "")
+            .accessibilityAddTraits(checkbox?.isMarked == true ? .isSelected : [])
+            .accessibilityActions {
+                if let checkbox {
+                    Button(checkbox.isMarked ? String(localized: "Uncheck") : String(localized: "Check")) { checkbox.toggle(false) }
+                }
+            }
         }
+    }
+
+    /// Takes no room of its own: it sits under the unread dot, and appears when the pointer is over the row.
+    private func checkboxView(_ checkbox: RowCheckbox) -> some View {
+        let isVisible = checkbox.isMarked || checkbox.isAlwaysVisible || isHovered
+        return Toggle(isOn: Binding(
+            get: { checkbox.isMarked },
+            // The click's own modifiers, rather than the keys held by the time SwiftUI calls this.
+            set: { _ in checkbox.toggle((NSApp.currentEvent?.modifierFlags ?? NSEvent.modifierFlags).contains(.shift)) }
+        )) {
+            Text(checkbox.isMarked ? "Uncheck" : "Check")
+        }
+        .toggleStyle(.checkbox)
+        .labelsHidden()
+        .controlSize(.small)
+        .opacity(isVisible ? 1 : 0)
+        .allowsHitTesting(isVisible)
+        .help(String(localized: "Check to act on several conversations. Shift-click to check a range."))
+        .accessibilityHidden(true)
     }
 
     /// One spoken summary per row: state first, then who, what and when, then the preview.
